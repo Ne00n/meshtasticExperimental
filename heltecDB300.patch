@@ -1,0 +1,13 @@
+diff --git a/src/mesh/mesh-pb-constants.h b/src/mesh/mesh-pb-constants.h
+index 1c86653dc..4403deb0f 100644
+--- a/src/mesh/mesh-pb-constants.h
++++ b/src/mesh/mesh-pb-constants.h
+@@ -32,7 +32,7 @@ static inline int get_max_num_nodes()
+     if (flash_size >= 15) {
+         return 250;
+     } else if (flash_size >= 7) {
+-        return 200;
++        return 300;
+     } else {
+         return 100;
+     }
