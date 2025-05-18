@@ -1,93 +1,42 @@
 diff --git a/src/mesh/Router.cpp b/src/mesh/Router.cpp
-index fef29388e..96f0af17e 100644
+index fef29388e..07fd2bc40 100644
 --- a/src/mesh/Router.cpp
 +++ b/src/mesh/Router.cpp
-@@ -18,9 +18,9 @@
- #if ARCH_PORTDUINO
- #include "platform/portduino/PortduinoGlue.h"
- #endif
--#if ENABLE_JSON_LOGGING || ARCH_PORTDUINO
- #include "serialization/MeshPacketSerializer.h"
--#endif
-+#include <unordered_map>
-+#include <utility>
- 
- #define MAX_RX_FROMRADIO                                                                                                         \
-     4 // max number of packets destined to our queue, we dispatch packets quickly so it doesn't need to be big
-@@ -669,6 +669,30 @@ void Router::handleReceived(meshtastic_MeshPacket *p, RxSource src)
-     packetPool.release(p_encrypted); // Release the encrypted packet
- }
- 
-+// Helper for hashing std::pair<NodeNum, meshtastic_PortNum>
-+namespace std {
-+    template<>
-+    struct hash<std::pair<NodeNum, meshtastic_PortNum>> {
-+        size_t operator()(const std::pair<NodeNum, meshtastic_PortNum>& p) const {
-+            return hash<NodeNum>()(p.first) ^ (hash<int>()(static_cast<int>(p.second)) << 1);
-+        }
-+    };
-+}
-+
-+// Rate limit helper: returns true if rate limited, otherwise updates last time and returns false
-+bool Router::isRateLimited(NodeNum sender, meshtastic_PortNum portnum, uint32_t now) {
-+    constexpr uint32_t RATE_LIMIT_INTERVAL = 3600; // seconds
-+    auto key = std::make_pair(sender, portnum);
-+    auto it = rateLimitMap.find(key);
-+    if (it != rateLimitMap.end()) {
-+        if (now < it->second + RATE_LIMIT_INTERVAL) {
-+            return true;
-+        }
-+    }
-+    rateLimitMap[key] = now;
-+    return false;
-+}
-+
- void Router::perhapsHandleReceived(meshtastic_MeshPacket *p)
- {
- #if ENABLE_JSON_LOGGING
-@@ -714,6 +738,21 @@ void Router::perhapsHandleReceived(meshtastic_MeshPacket *p)
+@@ -708,6 +708,15 @@ void Router::perhapsHandleReceived(meshtastic_MeshPacket *p)
          return;
      }
  
-+    // Rate limit for NEIGHBORINFO_APP, NODEINFO_APP, POSITION_APP
++    // Check rate limiting for decoded packets
 +    if (p->which_payload_variant == meshtastic_MeshPacket_decoded_tag) {
-+        meshtastic_PortNum portnum = static_cast<meshtastic_PortNum>(p->decoded.portnum);
-+        if (portnum == meshtastic_PortNum_NEIGHBORINFO_APP ||
-+            portnum == meshtastic_PortNum_NODEINFO_APP ||
-+            portnum == meshtastic_PortNum_POSITION_APP) {
-+            uint32_t now = getValidTime(RTCQualityFromNet) / 1000;
-+            if (isRateLimited(p->from, portnum, now)) {
-+                LOG_INFO("Rate limited packet from 0x%x on portnum %d", p->from, portnum);
-+                packetPool.release(p);
-+                return;
-+            }
++        if (rateLimiter.shouldRateLimit(p->from, p->decoded.portnum)) {
++            LOG_DEBUG("Rate limiting packet from 0x%x on port %d", p->from, p->decoded.portnum);
++            packetPool.release(p);
++            return;
 +        }
 +    }
 +
-     // Note: we avoid calling shouldFilterReceived if we are supposed to ignore certain nodes - because some overrides might
-     // cache/learn of the existence of nodes (i.e. FloodRouter) that they should not
-     handleReceived(p);
+     if (shouldFilterReceived(p)) {
+         LOG_DEBUG("Incoming msg was filtered from 0x%x", p->from);
+         packetPool.release(p);
 diff --git a/src/mesh/Router.h b/src/mesh/Router.h
-index 58ca50f3d..34eddde4a 100644
+index 58ca50f3d..86182a158 100644
 --- a/src/mesh/Router.h
 +++ b/src/mesh/Router.h
-@@ -8,6 +8,8 @@
+@@ -7,6 +7,7 @@
+ #include "PacketHistory.h"
  #include "PointerQueue.h"
  #include "RadioInterface.h"
++#include "RateLimiter.h"
  #include "concurrency/OSThread.h"
-+#include <unordered_map>
-+#include <utility>
  
  /**
-  * A mesh aware router that supports multiple interfaces.
-@@ -18,6 +20,10 @@ class Router : protected concurrency::OSThread, protected PacketHistory
+@@ -18,6 +19,9 @@ class Router : protected concurrency::OSThread, protected PacketHistory
      /// Packets which have just arrived from the radio, ready to be processed by this service and possibly
      /// forwarded to the phone.
      PointerQueue<meshtastic_MeshPacket> fromRadioQueue;
-+    // Add rate limit map for (sender, portnum) -> last received time (seconds)
-+    std::unordered_map<std::pair<NodeNum, meshtastic_PortNum>, uint32_t, std::hash<size_t>> rateLimitMap;
-+    // Helper for rate limiting
-+    bool isRateLimited(NodeNum sender, meshtastic_PortNum portnum, uint32_t now);
++    
++    /// Rate limiter for controlling packet frequency
++    RateLimiter rateLimiter;
  
    protected:
      RadioInterface *iface = NULL;
