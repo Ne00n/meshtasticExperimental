@@ -1,9 +1,3 @@
-diff --git a/src/mesh/RateLimiter.cpp b/src/mesh/RateLimiter.cpp
-new file mode 100644
-index 000000000..e69de29bb
-diff --git a/src/mesh/RateLimiter.h b/src/mesh/RateLimiter.h
-new file mode 100644
-index 000000000..e69de29bb
 diff --git a/src/mesh/Router.cpp b/src/mesh/Router.cpp
 index fef29388e..41714e33a 100644
 --- a/src/mesh/Router.cpp
