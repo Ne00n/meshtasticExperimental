@@ -1,3 +1,14 @@
+diff --git a/src/mesh/RateLimiter.cpp b/src/mesh/RateLimiter.cpp
+new file mode 100644
+index 000000000..6b4a1a04d
+--- /dev/null
++++ b/src/mesh/RateLimiter.cpp
+@@ -0,0 +1,4 @@
++#include "RateLimiter.h"
++
++// Define the static member
++constexpr meshtastic_PortNum RateLimiter::RATE_LIMITED_PORTS[]; 
+\ No newline at end of file
 diff --git a/src/mesh/RateLimiter.h b/src/mesh/RateLimiter.h
 new file mode 100644
 index 000000000..c92ee62f0
