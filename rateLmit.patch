@@ -11,14 +11,15 @@ index 000000000..6b4a1a04d
 \ No newline at end of file
 diff --git a/src/mesh/RateLimiter.h b/src/mesh/RateLimiter.h
 new file mode 100644
-index 000000000..c92ee62f0
+index 000000000..7ae24db60
 --- /dev/null
 +++ b/src/mesh/RateLimiter.h
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,88 @@
 +#pragma once
 +
 +#include "configuration.h"
 +#include "mesh-pb-constants.h"
++#include "MeshTypes.h"
 +#include <unordered_map>
 +#include <cstdint>
 +
