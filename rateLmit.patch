@@ -1,9 +1,9 @@
 diff --git a/src/mesh/RateLimiter.h b/src/mesh/RateLimiter.h
 new file mode 100644
-index 000000000..0aad9a322
+index 000000000..c92ee62f0
 --- /dev/null
 +++ b/src/mesh/RateLimiter.h
-@@ -0,0 +1,71 @@
+@@ -0,0 +1,87 @@
 +#pragma once
 +
 +#include "configuration.h"
@@ -43,11 +43,13 @@ index 000000000..0aad9a322
 +        for (size_t i = 0; i < NUM_RATE_LIMITED_PORTS; i++) {
 +            if (RATE_LIMITED_PORTS[i] == portnum) {
 +                isRateLimitedPort = true;
++                LOG_DEBUG("Port %d is a rate-limited port", portnum);
 +                break;
 +            }
 +        }
 +        
 +        if (!isRateLimitedPort) {
++            LOG_DEBUG("Port %d is not rate-limited, allowing packet", portnum);
 +            return false; // Don't rate limit non-rate-limited ports
 +        }
 +        
@@ -57,13 +59,23 @@ index 000000000..0aad9a322
 +        // Check if we've seen a packet from this sender on this port recently
 +        auto it = senderTimes.find(portnum);
 +        if (it != senderTimes.end()) {
-+            if (currentTime - it->second < RATE_LIMIT_PERIOD_MS) {
++            uint32_t timeSinceLastPacket = currentTime - it->second;
++            if (timeSinceLastPacket < RATE_LIMIT_PERIOD_MS) {
++                uint32_t remainingTime = RATE_LIMIT_PERIOD_MS - timeSinceLastPacket;
++                LOG_DEBUG("Rate limiting packet from node 0x%x on port %d. Last packet was %u ms ago, %u ms remaining in rate limit period", 
++                         from, portnum, timeSinceLastPacket, remainingTime);
 +                return true; // Rate limit this packet
++            } else {
++                LOG_DEBUG("Rate limit period expired for node 0x%x on port %d. Last packet was %u ms ago", 
++                         from, portnum, timeSinceLastPacket);
 +            }
++        } else {
++            LOG_DEBUG("First packet from node 0x%x on port %d, not rate limited", from, portnum);
 +        }
 +        
 +        // Update the last packet time for this sender and port
 +        senderTimes[portnum] = currentTime;
++        LOG_DEBUG("Updated last packet time for node 0x%x on port %d to %u", from, portnum, currentTime);
 +        return false;
 +    }
 +    
@@ -72,25 +84,33 @@ index 000000000..0aad9a322
 +     * @param from The node number to clear history for
 +     */
 +    void clearNodeHistory(NodeNum from) {
-+        lastPacketTimes.erase(from);
++        if (lastPacketTimes.erase(from) > 0) {
++            LOG_DEBUG("Cleared rate limit history for node 0x%x", from);
++        } else {
++            LOG_DEBUG("No rate limit history found to clear for node 0x%x", from);
++        }
 +    }
 +}; 
 \ No newline at end of file
 diff --git a/src/mesh/Router.cpp b/src/mesh/Router.cpp
-index fef29388e..07fd2bc40 100644
+index fef29388e..0a2dd02cc 100644
 --- a/src/mesh/Router.cpp
 +++ b/src/mesh/Router.cpp
-@@ -708,6 +708,15 @@ void Router::perhapsHandleReceived(meshtastic_MeshPacket *p)
+@@ -708,6 +708,19 @@ void Router::perhapsHandleReceived(meshtastic_MeshPacket *p)
          return;
      }
  
 +    // Check rate limiting for decoded packets
 +    if (p->which_payload_variant == meshtastic_MeshPacket_decoded_tag) {
++        LOG_DEBUG("Checking rate limit for packet from node 0x%x on port %d", p->from, p->decoded.portnum);
 +        if (rateLimiter.shouldRateLimit(p->from, p->decoded.portnum)) {
-+            LOG_DEBUG("Rate limiting packet from 0x%x on port %d", p->from, p->decoded.portnum);
++            LOG_DEBUG("Rate limiting packet from node 0x%x on port %d - dropping packet", p->from, p->decoded.portnum);
 +            packetPool.release(p);
 +            return;
 +        }
++        LOG_DEBUG("Packet from node 0x%x on port %d passed rate limit check", p->from, p->decoded.portnum);
++    } else {
++        LOG_DEBUG("Skipping rate limit check for non-decoded packet from node 0x%x", p->from);
 +    }
 +
      if (shouldFilterReceived(p)) {
