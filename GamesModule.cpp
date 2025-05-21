@@ -156,7 +156,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
     }
     else if (isdigit(command[0])) {
         // Make a move
-        int position = command[0] - '0';
+        int position = command[0] - '1'; // Convert from 1-9 to 0-8
         return handleTicTacToeMove(mp, position);
     }
 
@@ -229,9 +229,9 @@ std::string GamesModule::getBoardString(const TicTacToeGame &game)
     std::stringstream ss;
     ss << "\n";
     for (int i = 0; i < 9; i += 3) {
-        ss << " " << (game.board[i] == ' ' ? std::to_string(i) : std::string(1, game.board[i])) << " | "
-           << (game.board[i+1] == ' ' ? std::to_string(i+1) : std::string(1, game.board[i+1])) << " | "
-           << (game.board[i+2] == ' ' ? std::to_string(i+2) : std::string(1, game.board[i+2])) << "\n";
+        ss << " " << (game.board[i] == ' ' ? std::to_string(i+1) : std::string(1, game.board[i])) << " | "
+           << (game.board[i+1] == ' ' ? std::to_string(i+2) : std::string(1, game.board[i+1])) << " | "
+           << (game.board[i+2] == ' ' ? std::to_string(i+3) : std::string(1, game.board[i+2])) << "\n";
         if (i < 6) ss << "---+---+---\n";
     }
     return ss.str();
