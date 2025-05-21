@@ -41,7 +41,7 @@ void GamesModule::cleanupOldGames()
 
     // Find games that need to be removed
     for (const auto &game : activeGames) {
-        if (currentTime - game.second.createdAt > GAME_TIMEOUT_SECONDS) {
+        if (currentTime - game.second.updated > GAME_TIMEOUT_SECONDS) {
             gamesToRemove.push_back(game.first);
         }
     }
@@ -198,8 +198,7 @@ void GamesModule::startNewTicTacToeGame(uint32_t player1, uint32_t player2)
     game.player1 = player1;
     game.player2 = player2;
     game.currentPlayer = player1;
-    game.isActive = true;
-    game.createdAt = time(nullptr);  // Set creation time
+    game.updated = time(nullptr);  // Set creation time
     activeGames[player1] = game;
 }
 
@@ -213,8 +212,10 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
         if ((game.player1 == mp.from || game.player2 == mp.from) && 
             game.currentPlayer == mp.from && 
             game.board[position] == ' ') {
-            
             game.board[position] = (mp.from == game.player1) ? 'X' : 'O';
+
+            // Update the game's last activity time
+            game.createdAt = time(nullptr);
             
             // Create message for both players
             std::string msg = getBoardString(game);
