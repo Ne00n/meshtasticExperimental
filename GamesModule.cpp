@@ -215,7 +215,7 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
             game.board[position] = (mp.from == game.player1) ? 'X' : 'O';
 
             // Update the game's last activity time
-            game.createdAt = time(nullptr);
+            game.updated = time(nullptr);
             
             // Create message for both players
             std::string msg = getBoardString(game);
