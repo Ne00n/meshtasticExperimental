@@ -209,7 +209,7 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
 
     for (auto it = activeGames.begin(); it != activeGames.end(); ++it) {
         auto &game = it->second;
-        if ((game.player1 == mp.from || game.player2 == mp.from) && 
+        if ((game.player1 == mp.from || game.second.player2 == mp.from) && 
             game.currentPlayer == mp.from && 
             game.board[position] == ' ') {
 
@@ -219,25 +219,29 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
             game.board[position] = (mp.from == game.player1) ? 'X' : 'O';
             
             // Create message for both players
-            std::string msg = getBoardString(game);
+            std::string boardState = getBoardString(game);
             bool gameEnded = false;
+            std::string endMessage;
             
             if (checkWin(game)) {
-                msg += "\nGame Over! " + std::string(mp.from == game.player1 ? "X" : "O") + " wins!";
+                endMessage = "\nGame Over! " + std::string(mp.from == game.player1 ? "X" : "O") + " wins!";
                 gameEnded = true;
             }
             else if (checkDraw(game)) {
-                msg += "\nGame Over! It's a draw!";
+                endMessage = "\nGame Over! It's a draw!";
                 gameEnded = true;
-            }
-            else {
-                game.currentPlayer = (game.currentPlayer == game.player1) ? 
-                                   game.player2 : game.player1;
-                msg += "\nWaiting for opponent's move...";
             }
             
             // Send to the player who made the move
             auto reply = allocDataPacket();
+            std::string msg = boardState;
+            if (gameEnded) {
+                msg += endMessage;
+            } else {
+                game.currentPlayer = (game.currentPlayer == game.player1) ? 
+                                   game.player2 : game.player1;
+                msg += "\nWaiting for opponent's move...";
+            }
             reply->decoded.payload.size = msg.length();
             memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
             reply->to = mp.from;
@@ -245,7 +249,12 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
 
             // Send to the other player
             auto reply2 = allocDataPacket();
-            std::string msg2 = getBoardString(game) + "\nYour turn to move " + std::string(game.currentPlayer == game.player1 ? "X" : "O") + "!";
+            std::string msg2 = boardState;
+            if (gameEnded) {
+                msg2 += endMessage;
+            } else {
+                msg2 += "\nYour turn to move " + std::string(game.currentPlayer == game.player1 ? "X" : "O") + "!";
+            }
             reply2->decoded.payload.size = msg2.length();
             memcpy(reply2->decoded.payload.bytes, msg2.c_str(), reply2->decoded.payload.size);
             reply2->to = (mp.from == game.player1) ? game.player2 : game.player1;
