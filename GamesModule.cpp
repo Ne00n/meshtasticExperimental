@@ -180,27 +180,29 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
     if (position < 0 || position > 8)
         return false;
 
-    for (auto &game : activeGames) {
-        if ((game.second.player1 == mp.from || game.second.player2 == mp.from) && 
-            game.second.currentPlayer == mp.from && 
-            game.second.board[position] == ' ') {
+    for (auto it = activeGames.begin(); it != activeGames.end(); ++it) {
+        auto &game = it->second;
+        if ((game.player1 == mp.from || game.player2 == mp.from) && 
+            game.currentPlayer == mp.from && 
+            game.board[position] == ' ') {
             
-            game.second.board[position] = (mp.from == game.second.player1) ? 'X' : 'O';
+            game.board[position] = (mp.from == game.player1) ? 'X' : 'O';
             
             // Create message for both players
-            std::string msg = getBoardString(game.second);
+            std::string msg = getBoardString(game);
+            bool gameEnded = false;
             
-            if (checkWin(game.second)) {
+            if (checkWin(game)) {
                 msg += "\nGame Over! Player " + std::to_string(mp.from) + " wins!";
-                game.second.isActive = false;
+                gameEnded = true;
             }
-            else if (checkDraw(game.second)) {
+            else if (checkDraw(game)) {
                 msg += "\nGame Over! It's a draw!";
-                game.second.isActive = false;
+                gameEnded = true;
             }
             else {
-                game.second.currentPlayer = (game.second.currentPlayer == game.second.player1) ? 
-                                          game.second.player2 : game.second.player1;
+                game.currentPlayer = (game.currentPlayer == game.player1) ? 
+                                   game.player2 : game.player1;
                 msg += "\nNext player's turn.";
             }
             
@@ -215,8 +217,13 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
             auto reply2 = allocDataPacket();
             reply2->decoded.payload.size = msg.length();
             memcpy(reply2->decoded.payload.bytes, msg.c_str(), reply2->decoded.payload.size);
-            reply2->to = (mp.from == game.second.player1) ? game.second.player2 : game.second.player1;
+            reply2->to = (mp.from == game.player1) ? game.player2 : game.player1;
             service->sendToMesh(reply2);
+
+            // Remove the game if it ended
+            if (gameEnded) {
+                activeGames.erase(it);
+            }
 
             return true;
         }
