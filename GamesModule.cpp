@@ -92,7 +92,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
         // Start a new game
         startNewTicTacToeGame(mp.from, 0); // Second player will be set when they join
         auto reply = allocReply();
-        const char *msg = "New Tic Tac Toe game started! Waiting for opponent...";
+        const char *msg = "New Tic Tac Toe game started! Waiting for an opponent to join...";
         reply->decoded.payload.size = strlen(msg);
         memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
         reply->to = mp.from; // Ensure reply goes only to the sender
@@ -138,7 +138,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
 
         // Notify both players
         auto reply = allocReply();
-        std::string msg = "Game started! Your turn.\n" + getBoardString(game);
+        std::string msg = "Game started! You are O. Waiting for opponent's move...\n" + getBoardString(game);
         reply->decoded.payload.size = msg.length();
         memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
         reply->to = mp.from; // Send to the joining player
@@ -146,7 +146,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
 
         // Notify the first player
         auto reply2 = allocDataPacket(); // Use allocDataPacket for the second message
-        std::string msg2 = "Opponent joined! Your turn.\n" + getBoardString(game);
+        std::string msg2 = "Opponent joined! You are X. Your turn to move!\n" + getBoardString(game);
         reply2->decoded.payload.size = msg2.length();
         memcpy(reply2->decoded.payload.bytes, msg2.c_str(), reply2->decoded.payload.size);
         reply2->to = game.player1;
@@ -193,7 +193,7 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
             bool gameEnded = false;
             
             if (checkWin(game)) {
-                msg += "\nGame Over! Player " + std::to_string(mp.from) + " wins!";
+                msg += "\nGame Over! " + std::string(mp.from == game.player1 ? "X" : "O") + " wins!";
                 gameEnded = true;
             }
             else if (checkDraw(game)) {
@@ -203,7 +203,7 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
             else {
                 game.currentPlayer = (game.currentPlayer == game.player1) ? 
                                    game.player2 : game.player1;
-                msg += "\nNext player's turn.";
+                msg += "\n" + std::string(game.currentPlayer == game.player1 ? "X" : "O") + "'s turn to move!";
             }
             
             // Send to the player who made the move
