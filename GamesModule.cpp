@@ -67,6 +67,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
                 const char *msg = "You already have an active game!";
                 reply->decoded.payload.size = strlen(msg);
                 memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
+                reply->to = mp.from; // Ensure reply goes only to the sender
                 service->sendToMesh(reply);
                 return true;
             }
@@ -78,6 +79,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
         const char *msg = "New Tic Tac Toe game started! Waiting for opponent...";
         reply->decoded.payload.size = strlen(msg);
         memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
+        reply->to = mp.from; // Ensure reply goes only to the sender
         service->sendToMesh(reply);
         return true;
     }
@@ -89,6 +91,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
                 const char *msg = "You already have an active game!";
                 reply->decoded.payload.size = strlen(msg);
                 memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
+                reply->to = mp.from; // Ensure reply goes only to the sender
                 service->sendToMesh(reply);
                 return true;
             }
@@ -107,6 +110,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
             const char *msg = "No games available to join. Start a new game with 'ttt new'";
             reply->decoded.payload.size = strlen(msg);
             memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
+            reply->to = mp.from; // Ensure reply goes only to the sender
             service->sendToMesh(reply);
             return true;
         }
