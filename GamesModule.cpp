@@ -209,7 +209,7 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
 
     for (auto it = activeGames.begin(); it != activeGames.end(); ++it) {
         auto &game = it->second;
-        if ((game.player1 == mp.from || game.second.player2 == mp.from) && 
+        if ((game.player1 == mp.from || game.player2 == mp.from) && 
             game.currentPlayer == mp.from && 
             game.board[position] == ' ') {
 
