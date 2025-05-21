@@ -41,7 +41,10 @@ void GamesModule::cleanupOldGames()
 
     // Find games that need to be removed
     for (const auto &game : activeGames) {
-        if (currentTime - game.second.wasUpdated > GAME_TIMEOUT_SECONDS) {
+        time_t timeDiff = currentTime - game.second.wasUpdated;
+        LOG_DEBUG("Game %u: Last updated %ld seconds ago (timeout: %d)\n", 
+                 game.first, timeDiff, GAME_TIMEOUT_SECONDS);
+        if (timeDiff > GAME_TIMEOUT_SECONDS) {
             gamesToRemove.push_back(game.first);
         }
     }
@@ -215,7 +218,6 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
 
             // Update the game's last activity time before making any changes
             game.wasUpdated = time(nullptr);
-            
             game.board[position] = (mp.from == game.player1) ? 'X' : 'O';
             
             // Create message for both players
