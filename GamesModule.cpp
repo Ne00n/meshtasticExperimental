@@ -146,7 +146,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
 
         // Notify the first player
         auto reply2 = allocDataPacket(); // Use allocDataPacket for the second message
-        std::string msg2 = "Opponent joined! You are X. Your turn to move!\n" + getBoardString(game);
+        std::string msg2 = "Opponent joined! You are X. Your turn to move X!\n" + getBoardString(game);
         reply2->decoded.payload.size = msg2.length();
         memcpy(reply2->decoded.payload.bytes, msg2.c_str(), reply2->decoded.payload.size);
         reply2->to = game.player1;
@@ -161,7 +161,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
                 auto reply = allocReply();
                 std::string msg = "Current game state:\n" + getBoardString(game.second);
                 if (game.second.currentPlayer == mp.from) {
-                    msg += "\nYour turn to move!";
+                    msg += "\nYour turn to move " + std::string(game.second.currentPlayer == game.second.player1 ? "X" : "O") + "!";
                 } else {
                     msg += "\nWaiting for opponent's move...";
                 }
@@ -243,7 +243,7 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
 
             // Send to the other player
             auto reply2 = allocDataPacket();
-            std::string msg2 = getBoardString(game) + "\nYour turn to move!";
+            std::string msg2 = getBoardString(game) + "\nYour turn to move " + std::string(game.currentPlayer == game.player1 ? "X" : "O") + "!";
             reply2->decoded.payload.size = msg2.length();
             memcpy(reply2->decoded.payload.bytes, msg2.c_str(), reply2->decoded.payload.size);
             reply2->to = (mp.from == game.player1) ? game.player2 : game.player1;
