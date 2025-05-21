@@ -4,6 +4,7 @@
 #include "main.h"
 #include <cstring>
 #include <sstream>
+#include <ctime>
 
 meshtastic_MeshPacket *GamesModule::allocReply()
 {
@@ -16,6 +17,9 @@ bool GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
 {
     if (mp.decoded.payload.size == 0)
         return false;
+
+    // Clean up old games before processing new commands
+    cleanupOldGames();
 
     // Convert payload to null-terminated string
     char payload[mp.decoded.payload.size + 1];
@@ -30,9 +34,44 @@ bool GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
     return false;
 }
 
+void GamesModule::cleanupOldGames()
+{
+    time_t currentTime = time(nullptr);
+    std::vector<uint32_t> gamesToRemove;
+
+    // Find games that need to be removed
+    for (const auto &game : activeGames) {
+        if (currentTime - game.second.createdAt > GAME_TIMEOUT_SECONDS) {
+            gamesToRemove.push_back(game.first);
+        }
+    }
+
+    // Remove the old games
+    for (uint32_t gameId : gamesToRemove) {
+        auto reply = allocReply();
+        std::string msg = "Game timed out due to inactivity.";
+        reply->decoded.payload.size = msg.length();
+        memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+        service.sendToMesh(reply);
+        activeGames.erase(gameId);
+    }
+}
+
 bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const char *command)
 {
     if (strncmp(command, "new", 3) == 0) {
+        // Check if player already has an active game
+        for (const auto &game : activeGames) {
+            if (game.second.player1 == mp.from || game.second.player2 == mp.from) {
+                auto reply = allocReply();
+                const char *msg = "You already have an active game!";
+                reply->decoded.payload.size = strlen(msg);
+                memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
+                service.sendToMesh(reply);
+                return true;
+            }
+        }
+
         // Start a new game
         startNewTicTacToeGame(mp.from, 0); // Second player will be set when they join
         auto reply = allocReply();
@@ -43,20 +82,56 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
         return true;
     }
     else if (strncmp(command, "join", 4) == 0) {
-        // Join an existing game
-        for (auto &game : activeGames) {
-            if (game.second.player2 == 0 && game.second.player1 != mp.from) {
-                game.second.player2 = mp.from;
-                game.second.currentPlayer = game.second.player1;
+        // Check if player already has an active game
+        for (const auto &game : activeGames) {
+            if (game.second.player1 == mp.from || game.second.player2 == mp.from) {
                 auto reply = allocReply();
-                std::string msg = "Game started! Your turn.\n" + getBoardString(game.second);
-                reply->decoded.payload.size = msg.length();
-                memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+                const char *msg = "You already have an active game!";
+                reply->decoded.payload.size = strlen(msg);
+                memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
                 service.sendToMesh(reply);
                 return true;
             }
         }
-        return false;
+
+        // List available games
+        std::vector<uint32_t> availableGames;
+        for (const auto &game : activeGames) {
+            if (game.second.player2 == 0 && game.second.player1 != mp.from) {
+                availableGames.push_back(game.first);
+            }
+        }
+
+        if (availableGames.empty()) {
+            auto reply = allocReply();
+            const char *msg = "No games available to join. Start a new game with 'ttt new'";
+            reply->decoded.payload.size = strlen(msg);
+            memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
+            service.sendToMesh(reply);
+            return true;
+        }
+
+        // Join the first available game
+        auto &game = activeGames[availableGames[0]];
+        game.player2 = mp.from;
+        game.currentPlayer = game.player1;
+
+        // Notify both players
+        auto reply = allocReply();
+        std::string msg = "Game started! Your turn.\n" + getBoardString(game);
+        reply->decoded.payload.size = msg.length();
+        memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+        service.sendToMesh(reply);
+
+        // Notify the first player
+        auto reply2 = allocReply();
+        std::string msg2 = "Opponent joined! Your turn.\n" + getBoardString(game);
+        reply2->decoded.payload.size = msg2.length();
+        memcpy(reply2->decoded.payload.bytes, msg2.c_str(), reply2->decoded.payload.size);
+        reply2->to = game.player1;
+        service.sendToMesh(reply2);
+
+        return true;
     }
     else if (isdigit(command[0])) {
         // Make a move
@@ -75,6 +150,7 @@ void GamesModule::startNewTicTacToeGame(uint32_t player1, uint32_t player2)
     game.player2 = player2;
     game.currentPlayer = player1;
     game.isActive = true;
+    game.createdAt = time(nullptr);  // Set creation time
     activeGames[player1] = game;
 }
 
