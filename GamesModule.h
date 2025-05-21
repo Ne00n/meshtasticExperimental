@@ -10,8 +10,7 @@ struct TicTacToeGame {
     uint32_t player1;
     uint32_t player2;
     uint32_t currentPlayer;
-    bool isActive;
-    time_t updated;  // When the game was updated/created
+    time_t wasUpdated;  // When the game was updated/created
 };
 
 class GamesModule : public SinglePortModule
