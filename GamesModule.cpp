@@ -92,7 +92,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
         // Start a new game
         startNewTicTacToeGame(mp.from, 0); // Second player will be set when they join
         auto reply = allocReply();
-        const char *msg = "New Tic Tac Toe game started! Waiting for an opponent to join...";
+        const char *msg = "New Tic Tac Toe game started! Waiting for an opponent to join...\nUse 'ttt board' to check the game state if you miss any updates.";
         reply->decoded.payload.size = strlen(msg);
         memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
         reply->to = mp.from; // Ensure reply goes only to the sender
@@ -152,6 +152,34 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
         reply2->to = game.player1;
         service->sendToMesh(reply2);
 
+        return true;
+    }
+    else if (strncmp(command, "board", 5) == 0) {
+        // Find player's active game
+        for (const auto &game : activeGames) {
+            if (game.second.player1 == mp.from || game.second.player2 == mp.from) {
+                auto reply = allocReply();
+                std::string msg = "Current game state:\n" + getBoardString(game.second);
+                if (game.second.currentPlayer == mp.from) {
+                    msg += "\nYour turn to move!";
+                } else {
+                    msg += "\nWaiting for opponent's move...";
+                }
+                reply->decoded.payload.size = msg.length();
+                memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+                reply->to = mp.from;
+                service->sendToMesh(reply);
+                return true;
+            }
+        }
+        
+        // No active game found
+        auto reply = allocReply();
+        const char *msg = "You don't have an active game. Start one with 'ttt new' or join one with 'ttt join'";
+        reply->decoded.payload.size = strlen(msg);
+        memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
+        reply->to = mp.from;
+        service->sendToMesh(reply);
         return true;
     }
     else if (isdigit(command[0])) {
