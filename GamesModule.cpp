@@ -203,7 +203,7 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
             else {
                 game.currentPlayer = (game.currentPlayer == game.player1) ? 
                                    game.player2 : game.player1;
-                msg += "\n" + std::string(game.currentPlayer == game.player1 ? "X" : "O") + "'s turn to move!";
+                msg += "\nWaiting for opponent's move...";
             }
             
             // Send to the player who made the move
@@ -215,8 +215,9 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
 
             // Send to the other player
             auto reply2 = allocDataPacket();
-            reply2->decoded.payload.size = msg.length();
-            memcpy(reply2->decoded.payload.bytes, msg.c_str(), reply2->decoded.payload.size);
+            std::string msg2 = getBoardString(game) + "\nYour turn to move!";
+            reply2->decoded.payload.size = msg2.length();
+            memcpy(reply2->decoded.payload.bytes, msg2.c_str(), reply2->decoded.payload.size);
             reply2->to = (mp.from == game.player1) ? game.player2 : game.player1;
             service->sendToMesh(reply2);
 
