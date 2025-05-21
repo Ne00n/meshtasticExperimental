@@ -121,10 +121,11 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
         std::string msg = "Game started! Your turn.\n" + getBoardString(game);
         reply->decoded.payload.size = msg.length();
         memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+        reply->to = mp.from; // Send to the joining player
         service->sendToMesh(reply);
 
         // Notify the first player
-        auto reply2 = allocReply();
+        auto reply2 = allocDataPacket(); // Use allocDataPacket for the second message
         std::string msg2 = "Opponent joined! Your turn.\n" + getBoardString(game);
         reply2->decoded.payload.size = msg2.length();
         memcpy(reply2->decoded.payload.bytes, msg2.c_str(), reply2->decoded.payload.size);
@@ -166,7 +167,7 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
             
             game.second.board[position] = (mp.from == game.second.player1) ? 'X' : 'O';
             
-            auto reply = allocReply();
+            // Create message for both players
             std::string msg = getBoardString(game.second);
             
             if (checkWin(game.second)) {
@@ -183,9 +184,19 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
                 msg += "\nNext player's turn.";
             }
             
+            // Send to the player who made the move
+            auto reply = allocReply();
             reply->decoded.payload.size = msg.length();
             memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
             service->sendToMesh(reply);
+
+            // Send to the other player
+            auto reply2 = allocDataPacket();
+            reply2->decoded.payload.size = msg.length();
+            memcpy(reply2->decoded.payload.bytes, msg.c_str(), reply2->decoded.payload.size);
+            reply2->to = (mp.from == game.second.player1) ? game.second.player2 : game.second.player1;
+            service->sendToMesh(reply2);
+
             return true;
         }
     }
