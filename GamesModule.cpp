@@ -205,9 +205,10 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
             }
             
             // Send to the player who made the move
-            auto reply = allocReply();
+            auto reply = allocDataPacket();
             reply->decoded.payload.size = msg.length();
             memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+            reply->to = mp.from;
             service->sendToMesh(reply);
 
             // Send to the other player
