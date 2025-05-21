@@ -48,11 +48,27 @@ void GamesModule::cleanupOldGames()
 
     // Remove the old games
     for (uint32_t gameId : gamesToRemove) {
-        auto reply = allocReply();
+        auto &game = activeGames[gameId];
         std::string msg = "Game timed out due to inactivity.";
-        reply->decoded.payload.size = msg.length();
-        memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
-        service->sendToMesh(reply);
+        
+        // Notify player 1 if they exist
+        if (game.player1 != 0) {
+            auto reply = allocDataPacket();
+            reply->decoded.payload.size = msg.length();
+            memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+            reply->to = game.player1;
+            service->sendToMesh(reply);
+        }
+        
+        // Notify player 2 if they exist
+        if (game.player2 != 0) {
+            auto reply = allocDataPacket();
+            reply->decoded.payload.size = msg.length();
+            memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+            reply->to = game.player2;
+            service->sendToMesh(reply);
+        }
+        
         activeGames.erase(gameId);
     }
 }
