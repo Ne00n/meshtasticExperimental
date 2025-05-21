@@ -13,10 +13,10 @@ meshtastic_MeshPacket *GamesModule::allocReply()
     return reply;
 }
 
-bool GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
+ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
 {
     if (mp.decoded.payload.size == 0)
-        return false;
+        return ProcessMessage::CONTINUE;
 
     // Clean up old games before processing new commands
     cleanupOldGames();
@@ -28,10 +28,10 @@ bool GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
 
     // Handle different game commands
     if (strncmp(payload, "ttt", 3) == 0) {
-        return handleTicTacToeCommand(mp, payload + 4); // Skip "ttt "
+        return handleTicTacToeCommand(mp, payload + 4) ? ProcessMessage::STOP : ProcessMessage::CONTINUE; // Skip "ttt "
     }
 
-    return false;
+    return ProcessMessage::CONTINUE;
 }
 
 void GamesModule::cleanupOldGames()
@@ -52,7 +52,7 @@ void GamesModule::cleanupOldGames()
         std::string msg = "Game timed out due to inactivity.";
         reply->decoded.payload.size = msg.length();
         memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
-        service.sendToMesh(reply);
+        service->sendToMesh(reply);
         activeGames.erase(gameId);
     }
 }
@@ -67,7 +67,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
                 const char *msg = "You already have an active game!";
                 reply->decoded.payload.size = strlen(msg);
                 memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
-                service.sendToMesh(reply);
+                service->sendToMesh(reply);
                 return true;
             }
         }
@@ -78,7 +78,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
         const char *msg = "New Tic Tac Toe game started! Waiting for opponent...";
         reply->decoded.payload.size = strlen(msg);
         memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
-        service.sendToMesh(reply);
+        service->sendToMesh(reply);
         return true;
     }
     else if (strncmp(command, "join", 4) == 0) {
@@ -89,7 +89,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
                 const char *msg = "You already have an active game!";
                 reply->decoded.payload.size = strlen(msg);
                 memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
-                service.sendToMesh(reply);
+                service->sendToMesh(reply);
                 return true;
             }
         }
@@ -107,7 +107,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
             const char *msg = "No games available to join. Start a new game with 'ttt new'";
             reply->decoded.payload.size = strlen(msg);
             memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
-            service.sendToMesh(reply);
+            service->sendToMesh(reply);
             return true;
         }
 
@@ -121,7 +121,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
         std::string msg = "Game started! Your turn.\n" + getBoardString(game);
         reply->decoded.payload.size = msg.length();
         memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
-        service.sendToMesh(reply);
+        service->sendToMesh(reply);
 
         // Notify the first player
         auto reply2 = allocReply();
@@ -129,7 +129,7 @@ bool GamesModule::handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const 
         reply2->decoded.payload.size = msg2.length();
         memcpy(reply2->decoded.payload.bytes, msg2.c_str(), reply2->decoded.payload.size);
         reply2->to = game.player1;
-        service.sendToMesh(reply2);
+        service->sendToMesh(reply2);
 
         return true;
     }
@@ -185,7 +185,7 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
             
             reply->decoded.payload.size = msg.length();
             memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
-            service.sendToMesh(reply);
+            service->sendToMesh(reply);
             return true;
         }
     }

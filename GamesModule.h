@@ -21,7 +21,7 @@ class GamesModule : public SinglePortModule
 
   protected:
     virtual meshtastic_MeshPacket *allocReply() override;
-    virtual bool handleReceived(const meshtastic_MeshPacket &mp) override;
+    virtual ProcessMessage handleReceived(const meshtastic_MeshPacket &mp) override;
 
   private:
     std::map<uint32_t, TicTacToeGame> activeGames;
