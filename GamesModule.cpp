@@ -5,6 +5,15 @@
 #include <cstring>
 #include <sstream>
 #include <ctime>
+#include <random>
+
+// Word list for Hangman
+const char* const GamesModule::HANGMAN_WORDS[] = {
+    "PYTHON", "JAVA", "RUBY", "SWIFT", "KOTLIN",
+    "LINUX", "WINDOWS", "MACOS", "ANDROID", "IOS",
+    "NETWORK", "DATABASE", "SERVER", "CLIENT", "ROUTER",
+    "PROTOCOL", "ENCRYPTION", "FIREWALL", "VIRTUAL", "CLOUD"
+};
 
 meshtastic_MeshPacket *GamesModule::allocReply()
 {
@@ -29,6 +38,9 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
     // Handle different game commands
     if (strncmp(payload, "ttt", 3) == 0) {
         return handleTicTacToeCommand(mp, payload + 4) ? ProcessMessage::STOP : ProcessMessage::CONTINUE; // Skip "ttt "
+    }
+    else if (strncmp(payload, "hangman", 7) == 0) {
+        return handleHangmanCommand(mp, payload + 8) ? ProcessMessage::STOP : ProcessMessage::CONTINUE; // Skip "hangman "
     }
 
     return ProcessMessage::CONTINUE;
@@ -73,6 +85,31 @@ void GamesModule::cleanupOldGames()
         }
         
         activeGames.erase(gameId);
+    }
+
+    // Clean up old Hangman games
+    std::vector<uint32_t> hangmanGamesToRemove;
+    for (const auto &game : activeHangmanGames) {
+        time_t timeDiff = currentTime - game.second.wasUpdated;
+        if (timeDiff > GAME_TIMEOUT_SECONDS) {
+            hangmanGamesToRemove.push_back(game.first);
+        }
+    }
+
+    // Remove old Hangman games
+    for (uint32_t gameId : hangmanGamesToRemove) {
+        auto &game = activeHangmanGames[gameId];
+        std::string msg = "Hangman game timed out due to inactivity.";
+        
+        if (game.player != 0) {
+            auto reply = allocDataPacket();
+            reply->decoded.payload.size = msg.length();
+            memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+            reply->to = game.player;
+            service->sendToMesh(reply);
+        }
+        
+        activeHangmanGames.erase(gameId);
     }
 }
 
@@ -316,4 +353,166 @@ bool GamesModule::checkDraw(const TicTacToeGame &game)
             return false;
     }
     return true;
+}
+
+std::string GamesModule::getRandomWord()
+{
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_int_distribution<> dis(0, HANGMAN_WORDS_COUNT - 1);
+    return HANGMAN_WORDS[dis(gen)];
+}
+
+void GamesModule::startNewHangmanGame(uint32_t player)
+{
+    HangmanGame game;
+    game.word = getRandomWord();
+    game.player = player;
+    game.remainingGuesses = 6;  // Standard hangman rules
+    game.guessedLetters = "";
+    game.currentState = std::string(game.word.length(), '_');
+    game.wasUpdated = time(nullptr);
+    activeHangmanGames[player] = game;
+}
+
+std::string GamesModule::getHangmanStateString(const HangmanGame &game)
+{
+    std::stringstream ss;
+    ss << "\nWord: ";
+    for (char c : game.currentState) {
+        ss << c << " ";
+    }
+    ss << "\nGuessed letters: " << (game.guessedLetters.empty() ? "none" : game.guessedLetters);
+    ss << "\nRemaining guesses: " << game.remainingGuesses;
+    return ss.str();
+}
+
+bool GamesModule::checkHangmanWin(const HangmanGame &game)
+{
+    return game.currentState.find('_') == std::string::npos;
+}
+
+bool GamesModule::makeHangmanGuess(const meshtastic_MeshPacket &mp, char guess)
+{
+    auto it = activeHangmanGames.find(mp.from);
+    if (it == activeHangmanGames.end())
+        return false;
+
+    auto &game = it->second;
+    if (game.player != mp.from)
+        return false;
+
+    // Convert guess to uppercase
+    guess = toupper(guess);
+
+    // Check if letter was already guessed
+    if (game.guessedLetters.find(guess) != std::string::npos) {
+        auto reply = allocReply();
+        std::string msg = "You already guessed that letter!" + getHangmanStateString(game);
+        reply->decoded.payload.size = msg.length();
+        memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+        reply->to = mp.from;
+        service->sendToMesh(reply);
+        return true;
+    }
+
+    // Update game state
+    game.wasUpdated = time(nullptr);
+    game.guessedLetters += guess;
+
+    bool correctGuess = false;
+    for (size_t i = 0; i < game.word.length(); i++) {
+        if (game.word[i] == guess) {
+            game.currentState[i] = guess;
+            correctGuess = true;
+        }
+    }
+
+    if (!correctGuess) {
+        game.remainingGuesses--;
+    }
+
+    // Check game end conditions
+    bool gameEnded = false;
+    std::string endMessage;
+
+    if (checkHangmanWin(game)) {
+        endMessage = "\nCongratulations! You won! The word was: " + game.word;
+        gameEnded = true;
+    }
+    else if (game.remainingGuesses <= 0) {
+        endMessage = "\nGame Over! You lost. The word was: " + game.word;
+        gameEnded = true;
+    }
+
+    // Send response to player
+    auto reply = allocReply();
+    std::string msg = getHangmanStateString(game);
+    if (gameEnded) {
+        msg += endMessage;
+        activeHangmanGames.erase(it);
+    }
+    else {
+        msg += "\nMake your next guess!";
+    }
+    reply->decoded.payload.size = msg.length();
+    memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+    reply->to = mp.from;
+    service->sendToMesh(reply);
+
+    return true;
+}
+
+bool GamesModule::handleHangmanCommand(const meshtastic_MeshPacket &mp, const char *command)
+{
+    if (strncmp(command, "new", 3) == 0) {
+        // Check if player already has an active game
+        if (activeHangmanGames.find(mp.from) != activeHangmanGames.end()) {
+            auto reply = allocReply();
+            const char *msg = "You already have an active game!";
+            reply->decoded.payload.size = strlen(msg);
+            memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
+            reply->to = mp.from;
+            service->sendToMesh(reply);
+            return true;
+        }
+
+        // Start a new game
+        startNewHangmanGame(mp.from);
+        auto reply = allocReply();
+        std::string msg = "New Hangman game started!" + getHangmanStateString(activeHangmanGames[mp.from]) + 
+                         "\nGuess a letter by typing it!";
+        reply->decoded.payload.size = msg.length();
+        memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+        reply->to = mp.from;
+        service->sendToMesh(reply);
+        return true;
+    }
+    else if (strncmp(command, "state", 5) == 0) {
+        // Show current game state
+        auto it = activeHangmanGames.find(mp.from);
+        if (it == activeHangmanGames.end()) {
+            auto reply = allocReply();
+            const char *msg = "You don't have an active game. Start one with 'hangman new'";
+            reply->decoded.payload.size = strlen(msg);
+            memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
+            reply->to = mp.from;
+            service->sendToMesh(reply);
+            return true;
+        }
+
+        auto reply = allocReply();
+        std::string msg = "Current game state:" + getHangmanStateString(it->second);
+        reply->decoded.payload.size = msg.length();
+        memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+        reply->to = mp.from;
+        service->sendToMesh(reply);
+        return true;
+    }
+    else if (strlen(command) == 1 && isalpha(command[0])) {
+        // Make a guess
+        return makeHangmanGuess(mp, command[0]);
+    }
+
+    return false;
 } 
