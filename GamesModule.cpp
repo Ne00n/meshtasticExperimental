@@ -66,10 +66,10 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
                          "   - ttt join - Join an existing game\n"
                          "   - ttt board - Show current game state\n"
                          "   - ttt [1-9] - Make a move\n\n"
-                         "2. Hangman\n"
+                         "2. Hangman (h)\n"
                          "   Commands:\n"
-                         "   - hangman - Start a new game\n"
-                         "   - hangman state - Show current game state\n"
+                         "   - h - Start a new game\n"
+                         "   - h state - Show current game state\n"
                          "   - [letter] - Make a guess";
         reply->decoded.payload.size = strlen(msg);
         memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
@@ -82,11 +82,11 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
     if (strncmp(payload, "ttt", 3) == 0) {
         return handleTicTacToeCommand(mp, payload + 4) ? ProcessMessage::STOP : ProcessMessage::CONTINUE; // Skip "ttt "
     }
-    else if (strncmp(payload, "hangman", 7) == 0) {
-        // Skip "hangman " and handle the command
-        const char* command = payload + 8;
+    else if (strncmp(payload, "hangman", 7) == 0 || strncmp(payload, "h", 1) == 0) {
+        // Skip "hangman " or "h " and handle the command
+        const char* command = (strncmp(payload, "hangman", 7) == 0) ? payload + 8 : payload + 2;
         if (strlen(command) == 0) {
-            // If just "hangman", start a new game
+            // If just "hangman" or "h", start a new game
             startNewHangmanGame(mp.from);
             auto reply = allocReply();
             std::string msg = "New Hangman game started!" + getHangmanStateString(activeHangmanGames[mp.from]) + 
