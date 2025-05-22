@@ -56,6 +56,28 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
     memcpy(payload, mp.decoded.payload.bytes, mp.decoded.payload.size);
     payload[mp.decoded.payload.size] = 0;
 
+    // Handle help and games commands
+    if (strcmp(payload, "help") == 0 || strcmp(payload, "games") == 0) {
+        auto reply = allocReply();
+        const char *msg = "Available games:\n"
+                         "1. Tic Tac Toe (ttt)\n"
+                         "   Commands:\n"
+                         "   - ttt new - Start a new game\n"
+                         "   - ttt join - Join an existing game\n"
+                         "   - ttt board - Show current game state\n"
+                         "   - ttt [1-9] - Make a move\n\n"
+                         "2. Hangman\n"
+                         "   Commands:\n"
+                         "   - hangman - Start a new game\n"
+                         "   - hangman state - Show current game state\n"
+                         "   - [letter] - Make a guess";
+        reply->decoded.payload.size = strlen(msg);
+        memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
+        reply->to = mp.from;
+        service->sendToMesh(reply);
+        return ProcessMessage::STOP;
+    }
+
     // Handle different game commands
     if (strncmp(payload, "ttt", 3) == 0) {
         return handleTicTacToeCommand(mp, payload + 4) ? ProcessMessage::STOP : ProcessMessage::CONTINUE; // Skip "ttt "
@@ -64,17 +86,8 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
         // Skip "hangman " and handle the command
         const char* command = payload + 8;
         if (strlen(command) == 0) {
-            // If no command provided, show help
-            auto reply = allocReply();
-            const char *msg = "Hangman commands:\n"
-                            "new - Start a new game\n"
-                            "state - Show current game state\n"
-                            "Or just type a letter to guess!";
-            reply->decoded.payload.size = strlen(msg);
-            memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
-            reply->to = mp.from;
-            service->sendToMesh(reply);
-            return ProcessMessage::STOP;
+            // If just "hangman", start a new game
+            return handleHangmanCommand(mp, "new") ? ProcessMessage::STOP : ProcessMessage::CONTINUE;
         }
         return handleHangmanCommand(mp, command) ? ProcessMessage::STOP : ProcessMessage::CONTINUE;
     }
@@ -322,7 +335,7 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
             reply->to = mp.from;
             service->sendToMesh(reply);
 
-            // Send to the other playerTrotz seiner Vorteile gibt es auch Bedenken hinsichtlich der Verantwortlichkeit und des Verständnisses des generierten Codes. Programmierer könnten KI-generierten Code verwenden, ohne dessen Funktionsweise vollständig zu verstehen, was zu unentdeckten Fehlern, Fehlfunktionen oder Sicherheitslücken führen kann.[11] Sicherheitslücken können auch auftreten, weil der Trainingsdatenbestand der genutzten Sprachmodelle aktuelle Sicherheitsprobleme noch nicht enthält. Dies stellt insbesondere in professionellen Umgebungen ein Risiko dar, in denen ein tiefes Verständnis des Codes für die Fehlerbehebung, Skalierbarkeit, Wartung und Sicherheit unerlässlich ist. 
+            // Send to the other player
             auto reply2 = allocDataPacket();
             std::string msg2 = boardState;
             if (gameEnded) {
