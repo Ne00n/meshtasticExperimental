@@ -61,7 +61,22 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
         return handleTicTacToeCommand(mp, payload + 4) ? ProcessMessage::STOP : ProcessMessage::CONTINUE; // Skip "ttt "
     }
     else if (strncmp(payload, "hangman", 7) == 0) {
-        return handleHangmanCommand(mp, payload + 8) ? ProcessMessage::STOP : ProcessMessage::CONTINUE; // Skip "hangman "
+        // Skip "hangman " and handle the command
+        const char* command = payload + 8;
+        if (strlen(command) == 0) {
+            // If no command provided, show help
+            auto reply = allocReply();
+            const char *msg = "Hangman commands:\n"
+                            "new - Start a new game\n"
+                            "state - Show current game state\n"
+                            "Or just type a letter to guess!";
+            reply->decoded.payload.size = strlen(msg);
+            memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
+            reply->to = mp.from;
+            service->sendToMesh(reply);
+            return ProcessMessage::STOP;
+        }
+        return handleHangmanCommand(mp, command) ? ProcessMessage::STOP : ProcessMessage::CONTINUE;
     }
 
     return ProcessMessage::CONTINUE;
