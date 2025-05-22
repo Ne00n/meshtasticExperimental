@@ -9,10 +9,31 @@
 
 // Word list for Hangman
 const char* const GamesModule::HANGMAN_WORDS[] = {
-    "PYTHON", "JAVA", "RUBY", "SWIFT", "KOTLIN",
-    "LINUX", "WINDOWS", "MACOS", "ANDROID", "IOS",
-    "NETWORK", "DATABASE", "SERVER", "CLIENT", "ROUTER",
-    "PROTOCOL", "ENCRYPTION", "FIREWALL", "VIRTUAL", "CLOUD"
+    // Tech-related words
+    "MESHTASTIC", "QUANTUM", "NEURAL", "ROBOTICS", "SATELLITE",
+    
+    // Animals
+    "ELEPHANT", "GIRAFFE", "PENGUIN", "DOLPHIN", "KANGAROO",
+    "CHEETAH", "GORILLA", "PANDA", "TIGER", "LION",
+    "OCTOPUS", "JAGUAR", "LEOPARD", "RHINOCEROS", "HIPPOPOTAMUS",
+    "CHIMPANZEE", "KOALA", "PLATYPUS", "NARWHAL", "PANGOLIN",
+    
+    // Space and Astronomy
+    "NEBULA", "QUASAR", "PULSAR", "GALAXY", "SUPERNOVA",
+    "METEOR", "COMET", "PLUTO", "JUPITER", "SATURN",
+    "MARS", "VENUS", "MERCURY", "NEPTUNE", "URANUS",
+    
+    // Physics and Science
+    "GRAVITY", "MAGNETISM", "ELECTRON", "NEUTRON", "PROTON",
+    "QUANTUM", "RELATIVITY", "FUSION", "FISSION", "ATOM",
+    
+    // Nature and Environment
+    "VOLCANO", "GLACIER", "CANYON", "WATERFALL", "GEYSER",
+    "AURORA", "THUNDER", "LIGHTNING", "TORNADO", "HURRICANE",
+    
+    // Interesting Places
+    "PYRAMID", "COLOSSEUM", "ACROPOLIS", "PALACE", "CASTLE",
+    "TEMPLE", "MONASTERY", "CATHEDRAL", "MOSQUE", "PAGODA"
 };
 
 meshtastic_MeshPacket *GamesModule::allocReply()
@@ -286,7 +307,7 @@ bool GamesModule::handleTicTacToeMove(const meshtastic_MeshPacket &mp, int posit
             reply->to = mp.from;
             service->sendToMesh(reply);
 
-            // Send to the other player
+            // Send to the other playerTrotz seiner Vorteile gibt es auch Bedenken hinsichtlich der Verantwortlichkeit und des Verständnisses des generierten Codes. Programmierer könnten KI-generierten Code verwenden, ohne dessen Funktionsweise vollständig zu verstehen, was zu unentdeckten Fehlern, Fehlfunktionen oder Sicherheitslücken führen kann.[11] Sicherheitslücken können auch auftreten, weil der Trainingsdatenbestand der genutzten Sprachmodelle aktuelle Sicherheitsprobleme noch nicht enthält. Dies stellt insbesondere in professionellen Umgebungen ein Risiko dar, in denen ein tiefes Verständnis des Codes für die Fehlerbehebung, Skalierbarkeit, Wartung und Sicherheit unerlässlich ist. 
             auto reply2 = allocDataPacket();
             std::string msg2 = boardState;
             if (gameEnded) {

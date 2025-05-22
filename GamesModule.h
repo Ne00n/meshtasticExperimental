@@ -39,7 +39,7 @@ class GamesModule : public SinglePortModule
     
     // Word list for Hangman
     static const char* const HANGMAN_WORDS[];
-    static const int HANGMAN_WORDS_COUNT = 20;  // Number of words in the list
+    static const int HANGMAN_WORDS_COUNT = 50;  // Number of words in the list
     
     // Game command handlers
     bool handleTicTacToeCommand(const meshtastic_MeshPacket &mp, const char *command);
