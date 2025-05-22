@@ -70,7 +70,7 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
                          "   Commands:\n"
                          "   - h - Start a new game\n"
                          "   - h state - Show current game state\n"
-                         "   - [letter] - Make a guess";
+                         "   - h [letter] - Make a guess";
         reply->decoded.payload.size = strlen(msg);
         memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
         reply->to = mp.from;
@@ -92,7 +92,7 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
             startNewHangmanGame(mp.from);
             auto reply = allocReply();
             std::string msg = "New Hangman game started!" + getHangmanStateString(activeHangmanGames[mp.from]) + 
-                            "\nGuess a letter by typing it!";
+                            "\nGuess a letter by typing 'h [letter]'!";
             reply->decoded.payload.size = msg.length();
             memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
             reply->to = mp.from;
