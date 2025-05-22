@@ -87,7 +87,15 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
         const char* command = payload + 8;
         if (strlen(command) == 0) {
             // If just "hangman", start a new game
-            return handleHangmanCommand(mp, "new") ? ProcessMessage::STOP : ProcessMessage::CONTINUE;
+            startNewHangmanGame(mp.from);
+            auto reply = allocReply();
+            std::string msg = "New Hangman game started!" + getHangmanStateString(activeHangmanGames[mp.from]) + 
+                            "\nGuess a letter by typing it!";
+            reply->decoded.payload.size = msg.length();
+            memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
+            reply->to = mp.from;
+            service->sendToMesh(reply);
+            return ProcessMessage::STOP;
         }
         return handleHangmanCommand(mp, command) ? ProcessMessage::STOP : ProcessMessage::CONTINUE;
     }
