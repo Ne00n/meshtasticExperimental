@@ -137,4 +137,19 @@ class GamesModule : public SinglePortModule
     std::string getRPSResult(const RPSGame &game);
     void cleanupRPSGame(uint32_t gameId);
     char getBotChoice();  // Get a random choice for the bot
+
+    // Battle processing functions
+    void processBattles(AutoChessGame &game);
+    void processBattle(AutoChessGame &game, uint32_t player1Id, uint32_t player2Id);
+    void sendBattleResults(uint32_t playerId, int round, bool won, int healthLost,
+                          bool hasWarrior, bool hasTroll, bool hasElf,
+                          bool hasKnight, bool hasMage);
+
+    // Unit counting functions
+    int countWarriors(const AutoChessPlayer &player);
+    int countTrolls(const AutoChessPlayer &player);
+    int countElves(const AutoChessPlayer &player);
+    int countKnights(const AutoChessPlayer &player);
+    int countMages(const AutoChessPlayer &player);
+    bool shouldDodge();
 }; 
