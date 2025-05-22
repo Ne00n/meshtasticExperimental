@@ -1629,4 +1629,13 @@ void GamesModule::sendBattleResults(uint32_t playerId, int round, bool won, int 
     memcpy(reply2->decoded.payload.bytes, msg2.c_str(), reply2->decoded.payload.size);
     reply2->to = playerId;
     service->sendToMesh(reply2);
+}
+
+int GamesModule::calculateTeamHealth(const std::vector<AutoChessUnit> &team)
+{
+    int totalHealth = 0;
+    for (const auto &unit : team) {
+        totalHealth += unit.health;
+    }
+    return totalHealth;
 } 

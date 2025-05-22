@@ -144,6 +144,7 @@ class GamesModule : public SinglePortModule
     void sendBattleResults(uint32_t playerId, int round, bool won, int healthLost,
                           bool hasWarrior, bool hasTroll, bool hasElf,
                           bool hasKnight, bool hasMage);
+    int calculateTeamHealth(const std::vector<AutoChessUnit> &team);
 
     // Unit counting functions
     int countWarriors(const AutoChessPlayer &player);
