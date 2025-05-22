@@ -60,12 +60,12 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
     if (strcmp(payload, "help") == 0 || strcmp(payload, "games") == 0) {
         auto reply = allocReply();
         const char *msg = "Available games:\n"
-                         "1. Tic Tac Toe (ttt)\n"
+                         "1. Tic Tac Toe (t)\n"
                          "   Commands:\n"
-                         "   - ttt new - Start a new game\n"
-                         "   - ttt join - Join an existing game\n"
-                         "   - ttt board - Show current game state\n"
-                         "   - ttt [1-9] - Make a move\n\n"
+                         "   - t new - Start a new game\n"
+                         "   - t join - Join an existing game\n"
+                         "   - t board - Show current game state\n"
+                         "   - t [1-9] - Make a move\n\n"
                          "2. Hangman (h)\n"
                          "   Commands:\n"
                          "   - h - Start a new game\n"
@@ -79,8 +79,10 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
     }
 
     // Handle different game commands
-    if (strncmp(payload, "ttt", 3) == 0) {
-        return handleTicTacToeCommand(mp, payload + 4) ? ProcessMessage::STOP : ProcessMessage::CONTINUE; // Skip "ttt "
+    if (strncmp(payload, "ttt", 3) == 0 || strncmp(payload, "t", 1) == 0) {
+        // Skip "ttt " or "t " and handle the command
+        const char* command = (strncmp(payload, "ttt", 3) == 0) ? payload + 4 : payload + 2;
+        return handleTicTacToeCommand(mp, command) ? ProcessMessage::STOP : ProcessMessage::CONTINUE;
     }
     else if (strncmp(payload, "hangman", 7) == 0 || strncmp(payload, "h", 1) == 0) {
         // Skip "hangman " or "h " and handle the command
