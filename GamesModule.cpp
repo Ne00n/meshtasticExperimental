@@ -59,18 +59,9 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
     // Handle help and games commands
     if (strcmp(payload, "help") == 0 || strcmp(payload, "games") == 0) {
         auto reply = allocReply();
-        const char *msg = "Available games:\n"
-                         "1. Tic Tac Toe (t)\n"
-                         "   Commands:\n"
-                         "   - t new - Start a new game\n"
-                         "   - t join - Join an existing game\n"
-                         "   - t board - Show current game state\n"
-                         "   - t [1-9] - Make a move\n\n"
-                         "2. Hangman (h)\n"
-                         "   Commands:\n"
-                         "   - h - Start a new game\n"
-                         "   - h state - Show current game state\n"
-                         "   - h [letter] - Make a guess";
+        const char *msg = "Games: TicTacToe(t) & Hangman(h)\n"
+                         "t: new/join/board/[1-9]\n"
+                         "h: new/state/[letter]";
         reply->decoded.payload.size = strlen(msg);
         memcpy(reply->decoded.payload.bytes, msg, reply->decoded.payload.size);
         reply->to = mp.from;
@@ -92,7 +83,7 @@ ProcessMessage GamesModule::handleReceived(const meshtastic_MeshPacket &mp)
             startNewHangmanGame(mp.from);
             auto reply = allocReply();
             std::string msg = "New Hangman game started!" + getHangmanStateString(activeHangmanGames[mp.from]) + 
-                            "\nGuess a letter by typing 'h [letter]'!";
+                            "\nGuess: h [letter]";
             reply->decoded.payload.size = msg.length();
             memcpy(reply->decoded.payload.bytes, msg.c_str(), reply->decoded.payload.size);
             reply->to = mp.from;
