@@ -1,0 +1,84 @@
+diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
+index f21974a2e..a98de8b74 100644
+--- a/src/mesh/NextHopRouter.cpp
++++ b/src/mesh/NextHopRouter.cpp
+@@ -17,7 +17,7 @@ ErrorCode NextHopRouter::send(meshtastic_MeshPacket *p)
+     p->relay_node = nodeDB->getLastByteOfNodeNum(getNodeNum()); // First set the relayer to us
+     wasSeenRecently(p);                                         // FIXME, move this to a sniffSent method
+ 
+-    p->next_hop = getNextHop(p->to, p->relay_node); // set the next hop
++    p->next_hop = getNextHop(p->to, p->relay_node, p); // set the next hop
+     LOG_DEBUG("Setting next hop for packet with dest %x to %x", p->to, p->next_hop);
+ 
+     // If it's from us, ReliableRouter already handles retransmissions if want_ack is set. If a next hop is set and hop limit is
+@@ -121,21 +121,36 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
+  * Get the next hop for a destination, given the relay node
+  * @return the node number of the next hop, 0 if no preference (fallback to FloodingRouter)
+  */
+-uint8_t NextHopRouter::getNextHop(NodeNum to, uint8_t relay_node)
++uint8_t NextHopRouter::getNextHop(NodeNum to, uint8_t relay_node, const meshtastic_MeshPacket *p)
+ {
+     // When we're a repeater router->sniffReceived will call NextHopRouter directly without checking for broadcast
+     if (isBroadcast(to))
+         return NO_NEXT_HOP_PREFERENCE;
+ 
+     meshtastic_NodeInfoLite *node = nodeDB->getMeshNode(to);
+-    if (node && node->next_hop) {
+-        // We are careful not to return the relay node as the next hop
+-        if (node->next_hop != relay_node) {
+-            // LOG_DEBUG("Next hop for 0x%x is 0x%x", to, node->next_hop);
+-            return node->next_hop;
+-        } else
+-            LOG_WARN("Next hop for 0x%x is 0x%x, same as relayer; set no pref", to, node->next_hop);
++    if (!node)
++        return NO_NEXT_HOP_PREFERENCE;
++
++    // Only try direct connection on first attempt (when numRetransmissions is 3)
++    if (p->numRetransmissions == 3 && node->last_seen > 0) {
++        uint32_t now = millis();
++        if (now - node->last_seen < 5 * 60 * 1000 && node->rssi > -124) {
++            LOG_DEBUG("First attempt: trying direct connection to %s (last seen %d seconds ago, RSSI: %d)", 
++                nodeDB->getNodeName(to),
++                (now - node->last_seen) / 1000,
++                node->rssi);
++            return nodeDB->getLastByteOfNodeNum(to); // Return last byte of node number
++        }
+     }
++
++    // Fall back to known routes
++    if (node->next_hop && node->next_hop != relay_node) {
++        LOG_DEBUG("Using known route to %s via %s", 
++            nodeDB->getNodeName(to),
++            nodeDB->getNodeName(node->next_hop));
++        return node->next_hop;
++    }
++
+     return NO_NEXT_HOP_PREFERENCE;
+ }
+ 
+diff --git a/src/mesh/NextHopRouter.h b/src/mesh/NextHopRouter.h
+index 6c2764aff..1ff098362 100644
+--- a/src/mesh/NextHopRouter.h
++++ b/src/mesh/NextHopRouter.h
+@@ -53,10 +53,10 @@ class GlobalPacketIdHashFunction
+   relayer of a packet, which bases this on information from a previous successful delivery to the destination via flooding.
+   Namely, in the PacketHistory, we keep track of (up to 3) relayers of a packet. When the ACK is delivered back to us via a node
+   that also relayed the original packet, we use that node as next hop for the destination from then on. This makes sure that only
+-  when there’s a two-way connection, we assign a next hop. Both the ReliableRouter and NextHopRouter will do retransmissions (the
++  when there's a two-way connection, we assign a next hop. Both the ReliableRouter and NextHopRouter will do retransmissions (the
+   NextHopRouter only 1 time). For the final retry, if no one actually relayed the packet, it will reset the next hop in order to
+   fall back to the FloodingRouter again. Note that thus also intermediate hops will do a single retransmission if the intended
+-  next-hop didn’t relay, in order to fix changes in the middle of the route.
++  next-hop didn't relay, in order to fix changes in the middle of the route.
+ */
+ class NextHopRouter : public FloodingRouter
+ {
+@@ -143,7 +143,7 @@ class NextHopRouter : public FloodingRouter
+      * Get the next hop for a destination, given the relay node
+      * @return the node number of the next hop, 0 if no preference (fallback to FloodingRouter)
+      */
+-    uint8_t getNextHop(NodeNum to, uint8_t relay_node);
++    uint8_t getNextHop(NodeNum to, uint8_t relay_node, const meshtastic_MeshPacket *p);
+ 
+     /** Check if we should be relaying this packet if so, do so.
+      *  @return true if we did relay */
