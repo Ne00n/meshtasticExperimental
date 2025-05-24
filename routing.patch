@@ -1,5 +1,5 @@
 diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
-index f21974a2e..a98de8b74 100644
+index f21974a2e..94ca888b3 100644
 --- a/src/mesh/NextHopRouter.cpp
 +++ b/src/mesh/NextHopRouter.cpp
 @@ -17,7 +17,7 @@ ErrorCode NextHopRouter::send(meshtastic_MeshPacket *p)
@@ -11,7 +11,7 @@ index f21974a2e..a98de8b74 100644
      LOG_DEBUG("Setting next hop for packet with dest %x to %x", p->to, p->next_hop);
  
      // If it's from us, ReliableRouter already handles retransmissions if want_ack is set. If a next hop is set and hop limit is
-@@ -121,21 +121,36 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
+@@ -121,21 +121,35 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
   * Get the next hop for a destination, given the relay node
   * @return the node number of the next hop, 0 if no preference (fallback to FloodingRouter)
   */
@@ -34,22 +34,21 @@ index f21974a2e..a98de8b74 100644
 +        return NO_NEXT_HOP_PREFERENCE;
 +
 +    // Only try direct connection on first attempt (when numRetransmissions is 3)
-+    if (p->numRetransmissions == 3 && node->last_seen > 0) {
++    if (p->hop_limit == 3 && node->last_heard > 0) {
 +        uint32_t now = millis();
-+        if (now - node->last_seen < 5 * 60 * 1000 && node->rssi > -124) {
-+            LOG_DEBUG("First attempt: trying direct connection to %s (last seen %d seconds ago, RSSI: %d)", 
-+                nodeDB->getNodeName(to),
-+                (now - node->last_seen) / 1000,
-+                node->rssi);
++        if (now - node->last_heard < 5 * 60 * 1000) {
++            LOG_DEBUG("First attempt: trying direct connection to 0x%x (last heard %d seconds ago)", 
++                to,
++                (now - node->last_heard) / 1000);
 +            return nodeDB->getLastByteOfNodeNum(to); // Return last byte of node number
 +        }
      }
 +
 +    // Fall back to known routes
 +    if (node->next_hop && node->next_hop != relay_node) {
-+        LOG_DEBUG("Using known route to %s via %s", 
-+            nodeDB->getNodeName(to),
-+            nodeDB->getNodeName(node->next_hop));
++        LOG_DEBUG("Using known route to 0x%x via 0x%x", 
++            to,
++            node->next_hop);
 +        return node->next_hop;
 +    }
 +
