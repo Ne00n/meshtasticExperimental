@@ -1,5 +1,5 @@
 diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
-index f21974a2e..463068daf 100644
+index f21974a2e..74b03c26b 100644
 --- a/src/mesh/NextHopRouter.cpp
 +++ b/src/mesh/NextHopRouter.cpp
 @@ -17,7 +17,7 @@ ErrorCode NextHopRouter::send(meshtastic_MeshPacket *p)
@@ -11,7 +11,7 @@ index f21974a2e..463068daf 100644
      LOG_DEBUG("Setting next hop for packet with dest %x to %x", p->to, p->next_hop);
  
      // If it's from us, ReliableRouter already handles retransmissions if want_ack is set. If a next hop is set and hop limit is
-@@ -121,7 +121,7 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
+@@ -121,20 +121,54 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
   * Get the next hop for a destination, given the relay node
   * @return the node number of the next hop, 0 if no preference (fallback to FloodingRouter)
   */
@@ -20,33 +20,60 @@ index f21974a2e..463068daf 100644
  {
      // When we're a repeater router->sniffReceived will call NextHopRouter directly without checking for broadcast
      if (isBroadcast(to))
-@@ -131,7 +131,25 @@ uint8_t NextHopRouter::getNextHop(NodeNum to, uint8_t relay_node)
-     if (node && node->next_hop) {
-         // We are careful not to return the relay node as the next hop
-         if (node->next_hop != relay_node) {
+         return NO_NEXT_HOP_PREFERENCE;
+ 
+     meshtastic_NodeInfoLite *node = nodeDB->getMeshNode(to);
+-    if (node && node->next_hop) {
+-        // We are careful not to return the relay node as the next hop
+-        if (node->next_hop != relay_node) {
 -            // LOG_DEBUG("Next hop for 0x%x is 0x%x", to, node->next_hop);
-+            // Get the next hop node info
-+            meshtastic_NodeInfoLite *nextHopNode = nodeDB->getMeshNode(node->next_hop);
-+            const char *nextHopName = nextHopNode && nextHopNode->has_user ? nextHopNode->user.long_name : "Unknown";
-+            
-+            // Get retries info
-+            auto key = GlobalPacketId(to, id);
-+            PendingPacket *pending = findPendingPacket(key);
-+            int retries = pending ? pending->numRetransmissions : 0;
-+            
-+            // Log node name, SNR, RSSI and retries if available
-+            if (node->has_user) {
-+                LOG_INFO("Next hop for node %s (0x%x) is %s (0x%x), SNR: %.2f dB, RSSI: %.2f dBm, Retries: %d", 
-+                    node->user.long_name, node->num, nextHopName, nextHopNode ? nextHopNode->num : node->next_hop, 
-+                    node->snr, node->rssi, retries);
+-            return node->next_hop;
+-        } else
+-            LOG_WARN("Next hop for 0x%x is 0x%x, same as relayer; set no pref", to, node->next_hop);
++    if (node) {
++        // Check if we've seen this node directly, recently, and if SNR is good enough for direct communication
++        if (node->has_user && node->snr > -10.0) {
++            uint32_t now = millis();
++            if (now - node->last_heard < 5 * 60 * 1000) { // 5 minutes in milliseconds
++                LOG_INFO("Direct route to node %s (0x%x) with good SNR: %.2f dB, seen recently, attempting direct send", 
++                    node->user.long_name, node->num, node->snr);
++                return nodeDB->getLastByteOfNodeNum(to); // Return the last byte of the destination node ID for direct routing
 +            } else {
-+                LOG_INFO("Next hop for node 0x%x is %s (0x%x), SNR: %.2f dB, RSSI: %.2f dBm, Retries: %d", 
-+                    node->num, nextHopName, nextHopNode ? nextHopNode->num : node->next_hop, 
-+                    node->snr, node->rssi, retries);
++                LOG_INFO("Direct route to node %s (0x%x) with good SNR: %.2f dB, but not seen recently, using next hop", 
++                    node->user.long_name, node->num, node->snr);
 +            }
-             return node->next_hop;
-         } else
-             LOG_WARN("Next hop for 0x%x is 0x%x, same as relayer; set no pref", to, node->next_hop);
++        }
++
++        // If direct route not possible, fall back to next hop routing
++        if (node->next_hop) {
++            // We are careful not to return the relay node as the next hop
++            if (node->next_hop != relay_node) {
++                // Get the next hop node info
++                meshtastic_NodeInfoLite *nextHopNode = nodeDB->getMeshNode(node->next_hop);
++                const char *nextHopName = nextHopNode && nextHopNode->has_user ? nextHopNode->user.long_name : "Unknown";
++                
++                // Get retries info
++                auto key = GlobalPacketId(to, id);
++                PendingPacket *pending = findPendingPacket(key);
++                int retries = pending ? pending->numRetransmissions : 0;
++                
++                // Log node name, SNR, RSSI and retries if available
++                if (node->has_user) {
++                    LOG_INFO("Next hop for node %s (0x%x) is %s (0x%x), SNR: %.2f dB, RSSI: %.2f dBm, Retries: %d", 
++                        node->user.long_name, node->num, nextHopName, nextHopNode ? nextHopNode->num : node->next_hop, 
++                        node->snr, node->rssi, retries);
++                } else {
++                    LOG_INFO("Next hop for node 0x%x is %s (0x%x), SNR: %.2f dB, RSSI: %.2f dBm, Retries: %d", 
++                        node->num, nextHopName, nextHopNode ? nextHopNode->num : node->next_hop, 
++                        node->snr, node->rssi, retries);
++                }
++                return node->next_hop;
++            } else
++                LOG_WARN("Next hop for 0x%x is 0x%x, same as relayer; set no pref", to, node->next_hop);
++        }
+     }
+     return NO_NEXT_HOP_PREFERENCE;
+ }
 diff --git a/src/mesh/NextHopRouter.h b/src/mesh/NextHopRouter.h
 index 6c2764aff..e77d07ba3 100644
 --- a/src/mesh/NextHopRouter.h
