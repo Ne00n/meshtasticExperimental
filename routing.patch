@@ -1,5 +1,5 @@
 diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
-index f21974a2e..008bc373b 100644
+index f21974a2e..463068daf 100644
 --- a/src/mesh/NextHopRouter.cpp
 +++ b/src/mesh/NextHopRouter.cpp
 @@ -17,7 +17,7 @@ ErrorCode NextHopRouter::send(meshtastic_MeshPacket *p)
@@ -34,16 +34,42 @@ index f21974a2e..008bc373b 100644
 +            PendingPacket *pending = findPendingPacket(key);
 +            int retries = pending ? pending->numRetransmissions : 0;
 +            
-+            // Log node name and RSSI if available
++            // Log node name, SNR, RSSI and retries if available
 +            if (node->has_user) {
-+                LOG_INFO("Next hop for node %s (0x%x) is %s (0x%x), SNR: %.2f dB, Retries: %d", 
++                LOG_INFO("Next hop for node %s (0x%x) is %s (0x%x), SNR: %.2f dB, RSSI: %.2f dBm, Retries: %d", 
 +                    node->user.long_name, node->num, nextHopName, nextHopNode ? nextHopNode->num : node->next_hop, 
-+                    node->snr, retries);
++                    node->snr, node->rssi, retries);
 +            } else {
-+                LOG_INFO("Next hop for node 0x%x is %s (0x%x), SNR: %.2f dB, Retries: %d", 
++                LOG_INFO("Next hop for node 0x%x is %s (0x%x), SNR: %.2f dB, RSSI: %.2f dBm, Retries: %d", 
 +                    node->num, nextHopName, nextHopNode ? nextHopNode->num : node->next_hop, 
-+                    node->snr, retries);
++                    node->snr, node->rssi, retries);
 +            }
              return node->next_hop;
          } else
              LOG_WARN("Next hop for 0x%x is 0x%x, same as relayer; set no pref", to, node->next_hop);
+diff --git a/src/mesh/NextHopRouter.h b/src/mesh/NextHopRouter.h
+index 6c2764aff..e77d07ba3 100644
+--- a/src/mesh/NextHopRouter.h
++++ b/src/mesh/NextHopRouter.h
+@@ -53,10 +53,10 @@ class GlobalPacketIdHashFunction
+   relayer of a packet, which bases this on information from a previous successful delivery to the destination via flooding.
+   Namely, in the PacketHistory, we keep track of (up to 3) relayers of a packet. When the ACK is delivered back to us via a node
+   that also relayed the original packet, we use that node as next hop for the destination from then on. This makes sure that only
+-  when there’s a two-way connection, we assign a next hop. Both the ReliableRouter and NextHopRouter will do retransmissions (the
++  when there's a two-way connection, we assign a next hop. Both the ReliableRouter and NextHopRouter will do retransmissions (the
+   NextHopRouter only 1 time). For the final retry, if no one actually relayed the packet, it will reset the next hop in order to
+   fall back to the FloodingRouter again. Note that thus also intermediate hops will do a single retransmission if the intended
+-  next-hop didn’t relay, in order to fix changes in the middle of the route.
++  next-hop didn't relay, in order to fix changes in the middle of the route.
+ */
+ class NextHopRouter : public FloodingRouter
+ {
+@@ -143,7 +143,7 @@ class NextHopRouter : public FloodingRouter
+      * Get the next hop for a destination, given the relay node
+      * @return the node number of the next hop, 0 if no preference (fallback to FloodingRouter)
+      */
+-    uint8_t getNextHop(NodeNum to, uint8_t relay_node);
++    uint8_t getNextHop(NodeNum to, uint8_t relay_node, PacketId id);
+ 
+     /** Check if we should be relaying this packet if so, do so.
+      *  @return true if we did relay */
