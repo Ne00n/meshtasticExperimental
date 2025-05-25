@@ -1,5 +1,5 @@
 diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
-index f21974a2e..a27f93fa9 100644
+index f21974a2e..5b2652c2d 100644
 --- a/src/mesh/NextHopRouter.cpp
 +++ b/src/mesh/NextHopRouter.cpp
 @@ -131,7 +131,18 @@ uint8_t NextHopRouter::getNextHop(NodeNum to, uint8_t relay_node)
@@ -14,10 +14,10 @@ index f21974a2e..a27f93fa9 100644
 +            // Log node name and RSSI if available
 +            if (node->has_user) {
 +                LOG_INFO("Next hop for node %s (0x%x) is %s (0x%x), SNR: %.2f dB", 
-+                    node->user.long_name, to, nextHopName, node->next_hop, node->snr);
++                    node->user.long_name, node->num, nextHopName, nextHopNode ? nextHopNode->num : node->next_hop, node->snr);
 +            } else {
 +                LOG_INFO("Next hop for node 0x%x is %s (0x%x), SNR: %.2f dB", 
-+                    to, nextHopName, node->next_hop, node->snr);
++                    node->num, nextHopName, nextHopNode ? nextHopNode->num : node->next_hop, node->snr);
 +            }
              return node->next_hop;
          } else
