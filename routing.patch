@@ -1,19 +1,23 @@
 diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
-index f21974a2e..bee859203 100644
+index f21974a2e..a27f93fa9 100644
 --- a/src/mesh/NextHopRouter.cpp
 +++ b/src/mesh/NextHopRouter.cpp
-@@ -131,7 +131,14 @@ uint8_t NextHopRouter::getNextHop(NodeNum to, uint8_t relay_node)
+@@ -131,7 +131,18 @@ uint8_t NextHopRouter::getNextHop(NodeNum to, uint8_t relay_node)
      if (node && node->next_hop) {
          // We are careful not to return the relay node as the next hop
          if (node->next_hop != relay_node) {
 -            // LOG_DEBUG("Next hop for 0x%x is 0x%x", to, node->next_hop);
++            // Get the next hop node info
++            meshtastic_NodeInfoLite *nextHopNode = nodeDB->getMeshNode(node->next_hop);
++            const char *nextHopName = nextHopNode && nextHopNode->has_user ? nextHopNode->user.long_name : "Unknown";
++            
 +            // Log node name and RSSI if available
 +            if (node->has_user) {
-+                LOG_INFO("Next hop for node %s (0x%x) is 0x%x, SNR: %.2f dB", 
-+                    node->user.long_name, to, node->next_hop, node->snr);
++                LOG_INFO("Next hop for node %s (0x%x) is %s (0x%x), SNR: %.2f dB", 
++                    node->user.long_name, to, nextHopName, node->next_hop, node->snr);
 +            } else {
-+                LOG_INFO("Next hop for node 0x%x is 0x%x, SNR: %.2f dB", 
-+                    to, node->next_hop, node->snr);
++                LOG_INFO("Next hop for node 0x%x is %s (0x%x), SNR: %.2f dB", 
++                    to, nextHopName, node->next_hop, node->snr);
 +            }
              return node->next_hop;
          } else
