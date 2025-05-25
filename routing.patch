@@ -1,5 +1,5 @@
 diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
-index f21974a2e..f535c7a52 100644
+index f21974a2e..9e1f67302 100644
 --- a/src/mesh/NextHopRouter.cpp
 +++ b/src/mesh/NextHopRouter.cpp
 @@ -17,7 +17,7 @@ ErrorCode NextHopRouter::send(meshtastic_MeshPacket *p)
@@ -11,7 +11,7 @@ index f21974a2e..f535c7a52 100644
      LOG_DEBUG("Setting next hop for packet with dest %x to %x", p->to, p->next_hop);
  
      // If it's from us, ReliableRouter already handles retransmissions if want_ack is set. If a next hop is set and hop limit is
-@@ -121,21 +121,35 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
+@@ -121,21 +121,38 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
   * Get the next hop for a destination, given the relay node
   * @return the node number of the next hop, 0 if no preference (fallback to FloodingRouter)
   */
@@ -33,8 +33,11 @@ index f21974a2e..f535c7a52 100644
 +    if (!node)
 +        return NO_NEXT_HOP_PREFERENCE;
 +
++    // Get the pending packet to check numRetransmissions
++    PendingPacket *pending = findPendingPacket(getFrom(p), p->id);
++    
 +    // Only try direct connection on first attempt (when numRetransmissions is 3)
-+    if (p->numRetransmissions == 3 && node->last_heard > 0) {
++    if (pending && pending->numRetransmissions == 3 && node->last_heard > 0) {
 +        uint32_t now = millis();
 +        if (now - node->last_heard < 5 * 60 * 1000) {
 +            LOG_DEBUG("First attempt: trying direct connection to 0x%x (last heard %d seconds ago)", 
