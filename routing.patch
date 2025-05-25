@@ -1,5 +1,5 @@
 diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
-index f21974a2e..b90f89bc1 100644
+index f21974a2e..df312785e 100644
 --- a/src/mesh/NextHopRouter.cpp
 +++ b/src/mesh/NextHopRouter.cpp
 @@ -17,7 +17,7 @@ ErrorCode NextHopRouter::send(meshtastic_MeshPacket *p)
@@ -11,7 +11,7 @@ index f21974a2e..b90f89bc1 100644
      LOG_DEBUG("Setting next hop for packet with dest %x to %x", p->to, p->next_hop);
  
      // If it's from us, ReliableRouter already handles retransmissions if want_ack is set. If a next hop is set and hop limit is
-@@ -121,20 +121,66 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
+@@ -121,20 +121,60 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
   * Get the next hop for a destination, given the relay node
   * @return the node number of the next hop, 0 if no preference (fallback to FloodingRouter)
   */
@@ -34,18 +34,12 @@ index f21974a2e..b90f89bc1 100644
 +        // Check if we've seen this node directly, recently, and if SNR is good enough for direct communication
 +        if (node->has_user && node->snr > -10.0) {
 +            uint32_t now = millis();
-+            uint32_t last_heard_ms = node->last_heard * 1000; // Convert Unix timestamp to milliseconds
-+            uint32_t timeSinceLastHeard;
++            uint32_t current_time = getTime() * 1000; // Get current Unix time in milliseconds
++            uint32_t last_heard_ms = node->last_heard * 1000; // Convert stored Unix timestamp to milliseconds
++            uint32_t timeSinceLastHeard = current_time - last_heard_ms;
 +            
-+            // Handle potential overflow in millis()
-+            if (now < last_heard_ms) {
-+                timeSinceLastHeard = (UINT32_MAX - last_heard_ms) + now;
-+            } else {
-+                timeSinceLastHeard = now - last_heard_ms;
-+            }
-+            
-+            LOG_DEBUG("Node %s (0x%x) last_heard: %u ms ago (now: %u, last_heard: %u)", 
-+                node->user.long_name, node->num, timeSinceLastHeard, now, last_heard_ms);
++            LOG_DEBUG("Node %s (0x%x) last_heard: %u ms ago (current_time: %u, last_heard: %u)", 
++                node->user.long_name, node->num, timeSinceLastHeard, current_time, last_heard_ms);
 +            if (timeSinceLastHeard < 5 * 60 * 1000) { // 5 minutes in milliseconds
 +                LOG_INFO("Direct route to node %s (0x%x) with good SNR: %.2f dB, seen recently, attempting direct send", 
 +                    node->user.long_name, node->num, node->snr);
