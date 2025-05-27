@@ -1,47 +1,43 @@
 diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
-index f21974a2e..5c594bd01 100644
+index f21974a2e..6edfa21ae 100644
 --- a/src/mesh/NextHopRouter.cpp
 +++ b/src/mesh/NextHopRouter.cpp
-@@ -1,6 +1,6 @@
- #include "NextHopRouter.h"
+@@ -20,6 +20,23 @@ ErrorCode NextHopRouter::send(meshtastic_MeshPacket *p)
+     p->next_hop = getNextHop(p->to, p->relay_node); // set the next hop
+     LOG_DEBUG("Setting next hop for packet with dest %x to %x", p->to, p->next_hop);
  
--NextHopRouter::NextHopRouter() {}
-+NextHopRouter::NextHopRouter() : nextHopOptimizer(nodeDB) {}
- 
- PendingPacket::PendingPacket(meshtastic_MeshPacket *p, uint8_t numRetransmissions)
- {
-@@ -78,6 +78,9 @@ void NextHopRouter::sniffReceived(const meshtastic_MeshPacket *p, const meshtast
-                     if (origTx->next_hop != p->relay_node) { // Not already set
-                         LOG_INFO("Update next hop of 0x%x to 0x%x based on ACK/reply", p->from, p->relay_node);
-                         origTx->next_hop = p->relay_node;
-+                        
-+                        // Update route success statistics - no need to check isBroadcast since ACKs are always directed
-+                        nextHopOptimizer.updateRouteSuccess(p->to, p->relay_node, p->hop_start - p->hop_limit);
-                     }
-                 }
-             }
-@@ -131,6 +134,9 @@ uint8_t NextHopRouter::getNextHop(NodeNum to, uint8_t relay_node)
-     if (node && node->next_hop) {
-         // We are careful not to return the relay node as the next hop
-         if (node->next_hop != relay_node) {
-+            // Get the best next hop based on route statistics
-+            uint8_t bestNextHop = nextHopOptimizer.getBestNextHop(to, node->next_hop);
-+            LOG_DEBUG("Next hop comparison for 0x%x: current=0x%x, optimized=0x%x", to, node->next_hop, bestNextHop);
-             // LOG_DEBUG("Next hop for 0x%x is 0x%x", to, node->next_hop);
-             return node->next_hop;
-         } else
++    // Debug: Compare with NextHopSelector
++    uint8_t selectorHop = nextHopSelector.getBestNextHop(p->to, p->relay_node);
++    if (selectorHop != p->next_hop) {
++        LOG_INFO("[NextHopDebug] NextHopRouter chose %x, NextHopSelector suggests %x for dest %x", p->next_hop, selectorHop, p->to);
++        // Print top 3 candidates if available
++        // (Accessing internal structure for debug)
++        auto it = nextHopSelector.nextHopMap.find(p->to);
++        if (it != nextHopSelector.nextHopMap.end()) {
++            LOG_INFO("[NextHopDebug] Top candidates for dest %x:", p->to);
++            int rank = 1;
++            for (const auto& cand : it->second) {
++                LOG_INFO("  #%d: nodeId=%x, successRate=%.2f, success=%u, fail=%u", rank, cand.nodeId, cand.successRate, cand.successCount, cand.failureCount);
++                if (++rank > 3) break;
++            }
++        }
++    }
++
+     // If it's from us, ReliableRouter already handles retransmissions if want_ack is set. If a next hop is set and hop limit is
+     // not 0 or want_ack is set, start retransmissions
+     if ((!isFromUs(p) || !p->want_ack) && p->next_hop != NO_NEXT_HOP_PREFERENCE && (p->hop_limit > 0 || p->want_ack))
 diff --git a/src/mesh/NextHopRouter.h b/src/mesh/NextHopRouter.h
-index 6c2764aff..b69b2720e 100644
+index 6c2764aff..d7ed0d464 100644
 --- a/src/mesh/NextHopRouter.h
 +++ b/src/mesh/NextHopRouter.h
-@@ -1,6 +1,7 @@
- #pragma once
+@@ -2,6 +2,7 @@
  
  #include "FloodingRouter.h"
-+#include "NextHopOptimizer.h"
  #include <unordered_map>
++#include "NextHopSelector.h"
  
  /**
+  * An identifier for a globally unique message - a pair of the sending nodenum and the packet id assigned
 @@ -53,10 +54,10 @@ class GlobalPacketIdHashFunction
    relayer of a packet, which bases this on information from a previous successful delivery to the destination via flooding.
    Namely, in the PacketHistory, we keep track of (up to 3) relayers of a packet. When the ACK is delivered back to us via a node
@@ -55,12 +51,13 @@ index 6c2764aff..b69b2720e 100644
  */
  class NextHopRouter : public FloodingRouter
  {
-@@ -148,4 +149,7 @@ class NextHopRouter : public FloodingRouter
-     /** Check if we should be relaying this packet if so, do so.
-      *  @return true if we did relay */
-     bool perhapsRelay(const meshtastic_MeshPacket *p);
+@@ -97,6 +98,9 @@ class NextHopRouter : public FloodingRouter
+      */
+     std::unordered_map<GlobalPacketId, PendingPacket, GlobalPacketIdHashFunction> pending;
+ 
++    // Add NextHopSelector for debug/analysis
++    NextHopSelector nextHopSelector;
 +
-+    // Next hop optimizer for route optimization
-+    NextHopOptimizer nextHopOptimizer;
- };
-\ No newline at end of file
+     /**
+      * Should this incoming filter be dropped?
+      *
