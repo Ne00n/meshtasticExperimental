@@ -1,5 +1,5 @@
 diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
-index f21974a2e..65a773d93 100644
+index f21974a2e..8868e8ad9 100644
 --- a/src/mesh/NextHopRouter.cpp
 +++ b/src/mesh/NextHopRouter.cpp
 @@ -18,7 +18,29 @@ ErrorCode NextHopRouter::send(meshtastic_MeshPacket *p)
@@ -39,12 +39,12 @@ index f21974a2e..65a773d93 100644
                          origTx->next_hop = p->relay_node;
 +                        
 +                        // Record success in NextHopSelector
-+                        LOG_INFO("[NextHopDebug] Recording success for dest %x via nodeId %x", p->from, p->relay_node);
++                        LOG_INFO("[NextHopDebug] Recording success for dest %x via nodeId %x (ACK/reply received)", p->from, p->relay_node);
 +                        nextHopSelector.recordSuccess(p->from, p->relay_node);
                      }
                  }
              }
-@@ -124,17 +150,22 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
+@@ -124,17 +150,23 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
  uint8_t NextHopRouter::getNextHop(NodeNum to, uint8_t relay_node)
  {
      // When we're a repeater router->sniffReceived will call NextHopRouter directly without checking for broadcast
@@ -59,7 +59,8 @@ index f21974a2e..65a773d93 100644
          // We are careful not to return the relay node as the next hop
          if (node->next_hop != relay_node) {
 -            // LOG_DEBUG("Next hop for 0x%x is 0x%x", to, node->next_hop);
-+            LOG_INFO("[NextHopDebug] getNextHop: Found next hop %x for dest %x in nodeDB", node->next_hop, to);
++            LOG_INFO("[NextHopDebug] getNextHop: Found next hop %x for dest %x in nodeDB (node info: channel=%d, position=%d,%d,%d)", 
++                node->next_hop, to, node->channel, node->position.latitude_i, node->position.longitude_i, node->position.altitude);
              return node->next_hop;
 -        } else
 -            LOG_WARN("Next hop for 0x%x is 0x%x, same as relayer; set no pref", to, node->next_hop);
@@ -71,7 +72,7 @@ index f21974a2e..65a773d93 100644
      }
      return NO_NEXT_HOP_PREFERENCE;
  }
-@@ -216,6 +247,9 @@ int32_t NextHopRouter::doRetransmissions()
+@@ -216,6 +248,9 @@ int32_t NextHopRouter::doRetransmissions()
                      LOG_DEBUG("Reliable send failed, returning a nak for fr=0x%x,to=0x%x,id=0x%x", p.packet->from, p.packet->to,
                                p.packet->id);
                      sendAckNak(meshtastic_Routing_Error_MAX_RETRANSMIT, getFrom(p.packet), p.packet->id, p.packet->channel);
