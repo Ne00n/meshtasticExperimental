@@ -1,113 +1,185 @@
 diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
-index f21974a2e..1932e92d7 100644
+index f21974a2e..b920b84bf 100644
 --- a/src/mesh/NextHopRouter.cpp
 +++ b/src/mesh/NextHopRouter.cpp
-@@ -1,4 +1,5 @@
- #include "NextHopRouter.h"
-+#include "gps/RTC.h"
- 
- NextHopRouter::NextHopRouter() {}
- 
-@@ -17,7 +18,7 @@ ErrorCode NextHopRouter::send(meshtastic_MeshPacket *p)
-     p->relay_node = nodeDB->getLastByteOfNodeNum(getNodeNum()); // First set the relayer to us
-     wasSeenRecently(p);                                         // FIXME, move this to a sniffSent method
- 
--    p->next_hop = getNextHop(p->to, p->relay_node); // set the next hop
-+    p->next_hop = getNextHop(p->to, p->relay_node, p->id); // set the next hop
-     LOG_DEBUG("Setting next hop for packet with dest %x to %x", p->to, p->next_hop);
- 
-     // If it's from us, ReliableRouter already handles retransmissions if want_ack is set. If a next hop is set and hop limit is
-@@ -121,20 +122,59 @@ bool NextHopRouter::perhapsRelay(const meshtastic_MeshPacket *p)
-  * Get the next hop for a destination, given the relay node
-  * @return the node number of the next hop, 0 if no preference (fallback to FloodingRouter)
-  */
--uint8_t NextHopRouter::getNextHop(NodeNum to, uint8_t relay_node)
-+uint8_t NextHopRouter::getNextHop(NodeNum to, uint8_t relay_node, PacketId id)
- {
-     // When we're a repeater router->sniffReceived will call NextHopRouter directly without checking for broadcast
-     if (isBroadcast(to))
-         return NO_NEXT_HOP_PREFERENCE;
+@@ -79,6 +79,15 @@ void NextHopRouter::sniffReceived(const meshtastic_MeshPacket *p, const meshtast
+                         LOG_INFO("Update next hop of 0x%x to 0x%x based on ACK/reply", p->from, p->relay_node);
+                         origTx->next_hop = p->relay_node;
+                     }
++                    // Also update the next hop candidate with the successful relay
++                    uint8_t hopCount = p->hop_start - p->hop_limit;
++                    LOG_DEBUG("Updating next hop candidate for node 0x%x: candidate=0x%x, hop_count=%d", p->from, p->relay_node, hopCount);
++                    if (nodeDB->updateNextHopCandidates(p->from, p->relay_node, hopCount)) {
++                        uint8_t bestHop = nodeDB->getBestNextHop(p->from);
++                        LOG_DEBUG("Best next hop for node 0x%x is now 0x%x", p->from, bestHop);
++                    } else {
++                        LOG_DEBUG("Failed to update next hop candidate for node 0x%x", p->from);
++                    }
+                 }
+             }
+         }
+@@ -129,6 +138,10 @@ uint8_t NextHopRouter::getNextHop(NodeNum to, uint8_t relay_node)
  
      meshtastic_NodeInfoLite *node = nodeDB->getMeshNode(to);
--    if (node && node->next_hop) {
--        // We are careful not to return the relay node as the next hop
--        if (node->next_hop != relay_node) {
--            // LOG_DEBUG("Next hop for 0x%x is 0x%x", to, node->next_hop);
--            return node->next_hop;
--        } else
--            LOG_WARN("Next hop for 0x%x is 0x%x, same as relayer; set no pref", to, node->next_hop);
-+    if (node) {
-+        // Check if we've seen this node directly, recently, and if SNR is good enough for direct communication
-+        if (node->has_user && node->snr > -10.0) {
-+            uint32_t current_time = getTime() * 1000; // Get current Unix time in milliseconds
-+            uint32_t last_heard_ms = node->last_heard * 1000; // Convert stored Unix timestamp to milliseconds
-+            uint32_t timeSinceLastHeard = current_time - last_heard_ms;
-+            
-+            LOG_DEBUG("Node %s (0x%x) last_heard: %u ms ago (current_time: %u, last_heard: %u)", 
-+                node->user.long_name, node->num, timeSinceLastHeard, current_time, last_heard_ms);
-+            if (timeSinceLastHeard < 5 * 60 * 1000) { // 5 minutes in milliseconds
-+                LOG_INFO("Direct route to node %s (0x%x) with good SNR: %.2f dB, seen recently, attempting direct send", 
-+                    node->user.long_name, node->num, node->snr);
-+                return nodeDB->getLastByteOfNodeNum(to); // Return the last byte of the destination node ID for direct routing
-+            } else {
-+                LOG_INFO("Direct route to node %s (0x%x) with good SNR: %.2f dB, but not seen recently, using next hop", 
-+                    node->user.long_name, node->num, node->snr);
+     if (node && node->next_hop) {
++        // Debug: Compare original next hop with best candidate
++        uint8_t bestHop = nodeDB->getBestNextHop(to);
++        LOG_DEBUG("Next hop comparison for node 0x%x: original=0x%x, best_candidate=0x%x", to, node->next_hop, bestHop);
++        
+         // We are careful not to return the relay node as the next hop
+         if (node->next_hop != relay_node) {
+             // LOG_DEBUG("Next hop for 0x%x is 0x%x", to, node->next_hop);
+diff --git a/src/mesh/NodeDB.cpp b/src/mesh/NodeDB.cpp
+index 28af7d308..1a400aeaf 100644
+--- a/src/mesh/NodeDB.cpp
++++ b/src/mesh/NodeDB.cpp
+@@ -1822,4 +1822,103 @@ void recordCriticalError(meshtastic_CriticalErrorCode code, uint32_t address, co
+     LOG_ERROR("A critical failure occurred, portduino is exiting");
+     exit(2);
+ #endif
++}
++
++bool NodeDB::updateNextHopCandidates(NodeNum nodeId, uint8_t candidateId, uint8_t hopCount)
++{
++    meshtastic_NodeInfoLite *info = getMeshNode(nodeId);
++    if (!info) {
++        return false;
++    }
++
++    // Find if this candidate already exists
++    int existingIndex = -1;
++    for (int i = 0; i < MAX_NEXT_HOP_CANDIDATES; i++) {
++        if (info->next_hop_candidates[i].node_id == candidateId) {
++            existingIndex = i;
++            break;
++        }
++    }
++
++    uint32_t now = getTime();
++    
++    if (existingIndex >= 0) {
++        // Update existing candidate
++        info->next_hop_candidates[existingIndex].hop_count = hopCount;
++        info->next_hop_candidates[existingIndex].packet_count++;
++        info->next_hop_candidates[existingIndex].last_heard = now;
++    } else {
++        // Find slot for new candidate
++        int emptySlot = -1;
++        for (int i = 0; i < MAX_NEXT_HOP_CANDIDATES; i++) {
++            if (info->next_hop_candidates[i].node_id == 0) {
++                emptySlot = i;
++                break;
 +            }
 +        }
 +
-+        // If direct route not possible, fall back to next hop routing
-+        if (node->next_hop) {
-+            // We are careful not to return the relay node as the next hop
-+            if (node->next_hop != relay_node) {
-+                // Get the next hop node info
-+                meshtastic_NodeInfoLite *nextHopNode = nodeDB->getMeshNode(node->next_hop);
-+                const char *nextHopName = nextHopNode && nextHopNode->has_user ? nextHopNode->user.long_name : "Unknown";
++        if (emptySlot >= 0) {
++            // Add new candidate
++            info->next_hop_candidates[emptySlot].node_id = candidateId;
++            info->next_hop_candidates[emptySlot].hop_count = hopCount;
++            info->next_hop_candidates[emptySlot].packet_count = 1;
++            info->next_hop_candidates[emptySlot].last_heard = now;
++        } else {
++            // Replace worst candidate
++            int worstIndex = 0;
++            float worstScore = 0;
++            
++            for (int i = 0; i < MAX_NEXT_HOP_CANDIDATES; i++) {
++                // Score based on hop count, packet count, and recency
++                float score = (float)info->next_hop_candidates[i].packet_count / 
++                            (info->next_hop_candidates[i].hop_count * 
++                             (now - info->next_hop_candidates[i].last_heard + 1));
 +                
-+                // Get retries info
-+                auto key = GlobalPacketId(to, id);
-+                PendingPacket *pending = findPendingPacket(key);
-+                int retries = pending ? pending->numRetransmissions : 0;
-+                
-+                // Log node name, SNR, RSSI and retries if available
-+                if (node->has_user) {
-+                    LOG_INFO("Next hop for node %s (0x%x) is %s (0x%x), SNR: %.2f dB, Retries: %d", 
-+                        node->user.long_name, node->num, nextHopName, nextHopNode ? nextHopNode->num : node->next_hop, 
-+                        node->snr, retries);
-+                } else {
-+                    LOG_INFO("Next hop for node 0x%x is %s (0x%x), SNR: %.2f dB, Retries: %d", 
-+                        node->num, nextHopName, nextHopNode ? nextHopNode->num : node->next_hop, 
-+                        node->snr, retries);
++                if (score < worstScore || i == 0) {
++                    worstScore = score;
++                    worstIndex = i;
 +                }
-+                return node->next_hop;
-+            } else
-+                LOG_WARN("Next hop for 0x%x is 0x%x, same as relayer; set no pref", to, node->next_hop);
++            }
++            
++            info->next_hop_candidates[worstIndex].node_id = candidateId;
++            info->next_hop_candidates[worstIndex].hop_count = hopCount;
++            info->next_hop_candidates[worstIndex].packet_count = 1;
++            info->next_hop_candidates[worstIndex].last_heard = now;
 +        }
-     }
-     return NO_NEXT_HOP_PREFERENCE;
++    }
++
++    // Update the next_hop field with the best candidate
++    info->next_hop = getBestNextHop(nodeId);
++    
++    return true;
++}
++
++uint8_t NodeDB::getBestNextHop(NodeNum nodeId)
++{
++    meshtastic_NodeInfoLite *info = getMeshNode(nodeId);
++    if (!info) {
++        return NO_NEXT_HOP_PREFERENCE;
++    }
++
++    uint32_t now = getTime();
++    uint8_t bestHop = NO_NEXT_HOP_PREFERENCE;
++    float bestScore = 0;
++
++    for (int i = 0; i < MAX_NEXT_HOP_CANDIDATES; i++) {
++        if (info->next_hop_candidates[i].node_id == 0) {
++            continue;
++        }
++
++        // Score based on hop count, packet count, and recency
++        float score = (float)info->next_hop_candidates[i].packet_count / 
++                     (info->next_hop_candidates[i].hop_count * 
++                      (now - info->next_hop_candidates[i].last_heard + 1));
++
++        if (score > bestScore) {
++            bestScore = score;
++            bestHop = info->next_hop_candidates[i].node_id;
++        }
++    }
++
++    return bestHop;
  }
-diff --git a/src/mesh/NextHopRouter.h b/src/mesh/NextHopRouter.h
-index 6c2764aff..e77d07ba3 100644
---- a/src/mesh/NextHopRouter.h
-+++ b/src/mesh/NextHopRouter.h
-@@ -53,10 +53,10 @@ class GlobalPacketIdHashFunction
-   relayer of a packet, which bases this on information from a previous successful delivery to the destination via flooding.
-   Namely, in the PacketHistory, we keep track of (up to 3) relayers of a packet. When the ACK is delivered back to us via a node
-   that also relayed the original packet, we use that node as next hop for the destination from then on. This makes sure that only
--  when there’s a two-way connection, we assign a next hop. Both the ReliableRouter and NextHopRouter will do retransmissions (the
-+  when there's a two-way connection, we assign a next hop. Both the ReliableRouter and NextHopRouter will do retransmissions (the
-   NextHopRouter only 1 time). For the final retry, if no one actually relayed the packet, it will reset the next hop in order to
-   fall back to the FloodingRouter again. Note that thus also intermediate hops will do a single retransmission if the intended
--  next-hop didn’t relay, in order to fix changes in the middle of the route.
-+  next-hop didn't relay, in order to fix changes in the middle of the route.
- */
- class NextHopRouter : public FloodingRouter
- {
-@@ -143,7 +143,7 @@ class NextHopRouter : public FloodingRouter
-      * Get the next hop for a destination, given the relay node
-      * @return the node number of the next hop, 0 if no preference (fallback to FloodingRouter)
-      */
--    uint8_t getNextHop(NodeNum to, uint8_t relay_node);
-+    uint8_t getNextHop(NodeNum to, uint8_t relay_node, PacketId id);
+\ No newline at end of file
+diff --git a/src/mesh/NodeDB.h b/src/mesh/NodeDB.h
+index 16159d380..e3c9f9e76 100644
+--- a/src/mesh/NodeDB.h
++++ b/src/mesh/NodeDB.h
+@@ -71,6 +71,17 @@ enum LoadFileResult {
  
-     /** Check if we should be relaying this packet if so, do so.
-      *  @return true if we did relay */
+ enum UserLicenseStatus { NotKnown, NotLicensed, Licensed };
+ 
++// Structure to track next hop candidates
++struct NextHopCandidate {
++    uint8_t node_id;           // The node ID of this candidate
++    uint8_t hop_count;         // Number of hops to reach destination through this node
++    uint32_t packet_count;     // Number of successful packets received through this node
++    uint32_t last_heard;       // Last time we heard from this node
++};
++
++// Maximum number of next hop candidates to track per node
++#define MAX_NEXT_HOP_CANDIDATES 3
++
+ class NodeDB
+ {
+     // NodeNum provisionalNodeNum; // if we are trying to find a node num this is our current attempt
+@@ -209,6 +220,22 @@ class NodeDB
+     bool restorePreferences(meshtastic_AdminMessage_BackupLocation location,
+                             int restoreWhat = SEGMENT_CONFIG | SEGMENT_MODULECONFIG | SEGMENT_DEVICESTATE | SEGMENT_CHANNELS);
+ 
++    /**
++     * Update the next hop candidates for a node
++     * @param nodeId The destination node
++     * @param candidateId The potential next hop node
++     * @param hopCount The number of hops through this candidate
++     * @return true if the candidates were updated
++     */
++    bool updateNextHopCandidates(NodeNum nodeId, uint8_t candidateId, uint8_t hopCount);
++
++    /**
++     * Get the best next hop candidate for a node
++     * @param nodeId The destination node
++     * @return The best next hop candidate ID, or NO_NEXT_HOP_PREFERENCE if none available
++     */
++    uint8_t getBestNextHop(NodeNum nodeId);
++
+   private:
+     uint32_t lastNodeDbSave = 0;    // when we last saved our db to flash
+     uint32_t lastBackupAttempt = 0; // when we last tried a backup automatically or manually
