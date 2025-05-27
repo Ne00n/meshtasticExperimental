@@ -16,6 +16,10 @@ struct NextHopCandidate {
     uint32_t lastUsedTime;    // Last time this hop was used (millis)
     float successRate;        // Calculated success rate
 
+    // Default constructor required for STL containers
+    NextHopCandidate() : nodeId(0), successCount(0), failureCount(0), lastUsedTime(0), successRate(0.0f) {}
+
+    // Constructor with node ID
     NextHopCandidate(uint8_t id) : nodeId(id), successCount(0), failureCount(0), lastUsedTime(0), successRate(0.0f) {}
 
     // Update success rate calculation
