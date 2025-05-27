@@ -21,6 +21,13 @@ uint8_t NextHopSelector::getBestNextHop(NodeNum dest, uint8_t currentRelay) {
     // Sort the next hops by success rate and recency
     sortAndTrimNextHops(dest);
     
+    // Debug: Print all candidates before selection
+    LOG_DEBUG("[NextHopSelector] All candidates for dest %x:", dest);
+    for (const auto& candidate : it->second) {
+        LOG_DEBUG("  nodeId=%x, success=%u, fail=%u, rate=%.2f", 
+                 candidate.nodeId, candidate.successCount, candidate.failureCount, candidate.successRate);
+    }
+    
     // Find the best next hop that isn't the current relay
     for (const auto& candidate : it->second) {
         if (candidate.nodeId != currentRelay) {
