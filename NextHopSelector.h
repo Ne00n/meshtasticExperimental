@@ -71,6 +71,19 @@ public:
      */
     void resetNextHops(NodeNum dest);
 
+    /**
+     * Get debug info about the top candidates for a destination
+     * @param dest The destination node
+     * @return Vector of the top candidates, sorted by success rate
+     */
+    std::vector<NextHopCandidate> getTopCandidates(NodeNum dest) const {
+        auto it = nextHopMap.find(dest);
+        if (it != nextHopMap.end()) {
+            return it->second;
+        }
+        return {};
+    }
+
 private:
     /**
      * Add or update a next hop candidate
