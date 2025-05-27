@@ -1,5 +1,5 @@
 diff --git a/src/mesh/NextHopRouter.cpp b/src/mesh/NextHopRouter.cpp
-index f21974a2e..6edfa21ae 100644
+index f21974a2e..8991b6178 100644
 --- a/src/mesh/NextHopRouter.cpp
 +++ b/src/mesh/NextHopRouter.cpp
 @@ -20,6 +20,23 @@ ErrorCode NextHopRouter::send(meshtastic_MeshPacket *p)
@@ -26,6 +26,26 @@ index f21974a2e..6edfa21ae 100644
      // If it's from us, ReliableRouter already handles retransmissions if want_ack is set. If a next hop is set and hop limit is
      // not 0 or want_ack is set, start retransmissions
      if ((!isFromUs(p) || !p->want_ack) && p->next_hop != NO_NEXT_HOP_PREFERENCE && (p->hop_limit > 0 || p->want_ack))
+@@ -78,6 +95,9 @@ void NextHopRouter::sniffReceived(const meshtastic_MeshPacket *p, const meshtast
+                     if (origTx->next_hop != p->relay_node) { // Not already set
+                         LOG_INFO("Update next hop of 0x%x to 0x%x based on ACK/reply", p->from, p->relay_node);
+                         origTx->next_hop = p->relay_node;
++                        
++                        // Record success in NextHopSelector
++                        nextHopSelector.recordSuccess(p->from, p->relay_node);
+                     }
+                 }
+             }
+@@ -216,6 +236,9 @@ int32_t NextHopRouter::doRetransmissions()
+                     LOG_DEBUG("Reliable send failed, returning a nak for fr=0x%x,to=0x%x,id=0x%x", p.packet->from, p.packet->to,
+                               p.packet->id);
+                     sendAckNak(meshtastic_Routing_Error_MAX_RETRANSMIT, getFrom(p.packet), p.packet->id, p.packet->channel);
++                    
++                    // Record failure in NextHopSelector
++                    nextHopSelector.recordFailure(p.packet->to, p.packet->next_hop);
+                 }
+                 // Note: we don't stop retransmission here, instead the Nak packet gets processed in sniffReceived
+                 stopRetransmission(it->first);
 diff --git a/src/mesh/NextHopRouter.h b/src/mesh/NextHopRouter.h
 index 6c2764aff..d7ed0d464 100644
 --- a/src/mesh/NextHopRouter.h
