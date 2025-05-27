@@ -88,7 +88,6 @@ public:
         return {};
     }
 
-private:
     /**
      * Add or update a next hop candidate
      * @param dest The destination node
@@ -96,6 +95,7 @@ private:
      */
     void addOrUpdateNextHop(NodeNum dest, uint8_t nextHop);
 
+private:
     /**
      * Sort and trim the next hop list for a destination
      * @param dest The destination node
