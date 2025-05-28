@@ -1,16 +1,17 @@
 diff --git a/src/main.cpp b/src/main.cpp
-index 1e46d9db1..154b35a67 100644
+index 1e46d9db1..b48319fc9 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
-@@ -10,6 +10,7 @@
+@@ -10,6 +10,8 @@
  #include "ReliableRouter.h"
  #include "airtime.h"
  #include "buzz.h"
++#include "memGet.h"
 +#include "memoryDebug.h"
  
  #include "FSCommon.h"
  #include "Led.h"
-@@ -1397,6 +1398,9 @@ void loop()
+@@ -1397,6 +1399,9 @@ void loop()
  #endif
      powerCommandsCheck();
  
