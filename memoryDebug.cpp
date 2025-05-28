@@ -13,6 +13,12 @@ void MemoryDebug::printMemoryStats(const char* label) {
     Serial.println(label);
     Serial.println("----------------------------------------");
     
+    // Total Physical Memory
+    #ifdef ARCH_ESP32
+    uint32_t totalMemory = ESP.getHeapSize() + ESP.getFreePsram();  // Total SRAM
+    Serial.printf("Total SRAM: %u bytes (%.1f KB)\n\n", totalMemory, totalMemory/1024.0f);
+    #endif
+    
     // Main SRAM (Heap)
     uint32_t freeHeap = memGet.getFreeHeap();
     uint32_t totalHeap = memGet.getHeapSize();
