@@ -1,0 +1,14 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 1e46d9db1..20a94a39a 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -1397,6 +1397,9 @@ void loop()
+ #endif
+     powerCommandsCheck();
+ 
++    // Add memory debug check
++    MemoryDebug::checkPeriodicStats();
++
+ #ifdef DEBUG_STACK
+     static uint32_t lastPrint = 0;
+     if (!Throttle::isWithinTimespanMs(lastPrint, 10 * 1000L)) {
