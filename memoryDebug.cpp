@@ -3,7 +3,6 @@
 
 // Initialize static variables
 unsigned long MemoryDebug::lastCheckTime = 0;
-const unsigned long MemoryDebug::CHECK_INTERVAL = 30000;
 
 void MemoryDebug::printMemoryStats() {
     printMemoryStats("Memory Stats");
