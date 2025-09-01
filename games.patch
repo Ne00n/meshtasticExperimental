@@ -1,21 +1,20 @@
 diff --git a/src/modules/Modules.cpp b/src/modules/Modules.cpp
-index fac2ca976..89f85cbdf 100644
+index 0d405fa81..b4f969c79 100644
 --- a/src/modules/Modules.cpp
 +++ b/src/modules/Modules.cpp
-@@ -47,6 +47,7 @@
- #if !MESHTASTIC_EXCLUDE_WAYPOINT
- #include "modules/WaypointModule.h"
- #endif
+@@ -9,6 +9,7 @@
+ #include "input/TrackballInterruptImpl1.h"
+ #include "input/UpDownInterruptImpl1.h"
+ #include "modules/SystemCommandsModule.h"
 +#include "modules/GamesModule.h"
- #if ARCH_PORTDUINO
- #include "input/LinuxInputImpl.h"
- #include "modules/Telemetry/HostMetrics.h"
-@@ -246,6 +247,8 @@ void setupModules()
-         new RangeTestModule();
+ #if !MESHTASTIC_EXCLUDE_I2C
+ #include "input/cardKbI2cImpl.h"
  #endif
+@@ -246,6 +247,7 @@ void setupModules()
+ #if HAS_TELEMETRY && !MESHTASTIC_EXCLUDE_POWER_TELEMETRY && !MESHTASTIC_EXCLUDE_ENVIRONMENTAL_SENSOR
+         new PowerTelemetryModule();
  #endif
-+        // Add our games module
-+        new GamesModule();
-     } else {
- #if !MESHTASTIC_EXCLUDE_ADMIN
-         adminModule = new AdminModule();
++new GamesModule();
+ #if (defined(ARCH_ESP32) || defined(ARCH_NRF52) || defined(ARCH_RP2040)) && !defined(CONFIG_IDF_TARGET_ESP32S2) &&               \
+     !defined(CONFIG_IDF_TARGET_ESP32C3)
+ #if !MESHTASTIC_EXCLUDE_SERIAL
